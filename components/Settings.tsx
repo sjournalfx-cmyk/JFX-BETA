@@ -127,117 +127,124 @@ const Settings: React.FC<SettingsProps> = ({ isDarkMode, userProfile, onUpdatePr
 
         {/* Content Area */}
         <main className={`flex-1 rounded-3xl border overflow-y-auto custom-scrollbar ${isDarkMode ? 'bg-[#18181b] border-[#27272a]' : 'bg-white border-slate-100 shadow-xl'}`}>
-          <div className="p-10 max-w-2xl">
+          <div className={`p-10 ${activeTab === 'profile' ? 'max-w-full' : 'max-w-2xl'}`}>
             {activeTab === 'profile' && (
-              <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="flex items-center gap-6 mb-12">
-                  <div className="relative group">
-                    <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-2xl overflow-hidden">
-                      {formData.avatarUrl ? (
-                        <img src={formData.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-                      ) : (
-                        <User size={48} />
-                      )}
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-12">
+                  {/* Left Column: Profile Info */}
+                  <div className="xl:col-span-5 space-y-10">
+                    <div className="flex items-center gap-6">
+                      <div className="relative group">
+                        <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-2xl overflow-hidden">
+                          {formData.avatarUrl ? (
+                            <img src={formData.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                          ) : (
+                            <User size={48} />
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-black mb-1">{formData.name}</h3>
+                        <p className="text-xs font-bold text-[#FF4F01] uppercase tracking-widest">{formData.plan}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-black mb-1">{formData.name}</h3>
-                    <p className="text-xs font-bold text-[#FF4F01] uppercase tracking-widest">{formData.plan}</p>
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-x-10 gap-y-8">
-                  <div className="group">
-                    <label className={labelClasses}>Full Name</label>
-                    <input
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className={inputClasses}
-                    />
-                  </div>
-                  <div className="group">
-                    <label className={labelClasses}>Country</label>
-                    <div className="relative">
-                      <Globe className="absolute left-0 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-                      <input
-                        value={formData.country}
-                        onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                        className={inputClasses + " pl-8"}
-                      />
-                    </div>
-                  </div>
-                  <div className="group">
-                    <label className={labelClasses}>Trading Style</label>
-                    <Select
-                      value={formData.tradingStyle}
-                      onChange={(val) => setFormData({ ...formData, tradingStyle: val as any })}
-                      options={['Scalper', 'Day Trader', 'Swing Trader', 'Investor'].map(s => ({ value: s, label: s }))}
-                      isDarkMode={isDarkMode}
-                    />
-                  </div>
-                  <div className="group">
-                    <label className={labelClasses}>Experience Level</label>
-                    <Select
-                      value={formData.experienceLevel}
-                      onChange={(val) => setFormData({ ...formData, experienceLevel: val as any })}
-                      options={['Beginner', 'Intermediate', 'Advanced', 'Pro'].map(s => ({ value: s, label: s }))}
-                      isDarkMode={isDarkMode}
-                    />
-                  </div>
-                </div>
-
-                {/* Avatar Selection */}
-                <div className="space-y-6 pt-6 border-t border-dashed border-zinc-800">
-                  <h3 className="text-lg font-bold">Choose Your Avatar</h3>
-
-                  <div className="space-y-4">
-                    <h4 className="text-xs font-bold uppercase tracking-widest opacity-60">Free Tier (Journaler Bots)</h4>
-                    <div className="grid grid-cols-6 gap-4">
-                      {freeAvatars.map((url, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setFormData({ ...formData, avatarUrl: url })}
-                          className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all hover:scale-105 ${formData.avatarUrl === url ? 'border-[#FF4F01] ring-2 ring-[#FF4F01]/20' : 'border-transparent opacity-80 hover:opacity-100'}`}
-                        >
-                          <img src={url} alt="Avatar" className="w-full h-full object-cover" />
-                        </button>
-                      ))}
+                    <div className="space-y-8">
+                      <div className="group">
+                        <label className={labelClasses}>Full Name</label>
+                        <input
+                          value={formData.name}
+                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                          className={inputClasses}
+                        />
+                      </div>
+                      <div className="group">
+                        <label className={labelClasses}>Country</label>
+                        <div className="relative">
+                          <Globe className="absolute left-0 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+                          <input
+                            value={formData.country}
+                            onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                            className={inputClasses + " pl-8"}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-6">
+                        <div className="group">
+                          <label className={labelClasses}>Trading Style</label>
+                          <Select
+                            value={formData.tradingStyle}
+                            onChange={(val) => setFormData({ ...formData, tradingStyle: val as any })}
+                            options={['Scalper', 'Day Trader', 'Swing Trader', 'Investor'].map(s => ({ value: s, label: s }))}
+                            isDarkMode={isDarkMode}
+                          />
+                        </div>
+                        <div className="group">
+                          <label className={labelClasses}>Experience Level</label>
+                          <Select
+                            value={formData.experienceLevel}
+                            onChange={(val) => setFormData({ ...formData, experienceLevel: val as any })}
+                            options={['Beginner', 'Intermediate', 'Advanced', 'Pro'].map(s => ({ value: s, label: s }))}
+                            isDarkMode={isDarkMode}
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
+                  {/* Right Column: Avatar Selection */}
+                  <div className="xl:col-span-7 space-y-6">
+                    <h3 className="text-lg font-bold mb-2">Choose Your Avatar</h3>
+
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-bold uppercase tracking-widest opacity-60">Free Tier (Journaler Bots)</h4>
+                      <div className="grid grid-cols-6 gap-4">
+                        {freeAvatars.map((url, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setFormData({ ...formData, avatarUrl: url })}
+                            className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all hover:scale-105 ${formData.avatarUrl === url ? 'border-[#FF4F01] ring-2 ring-[#FF4F01]/20' : 'border-transparent opacity-80 hover:opacity-100'}`}
+                          >
+                            <img src={url} alt="Avatar" className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
                         <h4 className="text-xs font-bold uppercase tracking-widest opacity-60">Pro Tier (AI Analysts)</h4>
                         <div className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-500 text-[10px] font-black uppercase">Pro</div>
+                      </div>
+                      <div className="grid grid-cols-6 gap-4">
+                        {proAvatars.map((url, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setFormData({ ...formData, avatarUrl: url })}
+                            className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all hover:scale-105 ${formData.avatarUrl === url ? 'border-[#FF4F01] ring-2 ring-[#FF4F01]/20' : 'border-transparent opacity-80 hover:opacity-100'}`}
+                          >
+                            <img src={url} alt="Avatar" className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <div className="grid grid-cols-6 gap-4">
-                      {proAvatars.map((url, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setFormData({ ...formData, avatarUrl: url })}
-                          className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all hover:scale-105 ${formData.avatarUrl === url ? 'border-[#FF4F01] ring-2 ring-[#FF4F01]/20' : 'border-transparent opacity-80 hover:opacity-100'}`}
-                        >
-                          <img src={url} alt="Avatar" className="w-full h-full object-cover" />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
 
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
                         <h4 className="text-xs font-bold uppercase tracking-widest opacity-60">Premium Tier (Elite Masters)</h4>
                         <div className="px-2 py-0.5 rounded bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[10px] font-black uppercase">Elite</div>
-                    </div>
-                    <div className="grid grid-cols-6 gap-4">
-                      {premiumAvatars.map((url, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setFormData({ ...formData, avatarUrl: url })}
-                          className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all hover:scale-105 ${formData.avatarUrl === url ? 'border-[#FF4F01] ring-2 ring-[#FF4F01]/20' : 'border-transparent opacity-80 hover:opacity-100'}`}
-                        >
-                          <img src={url} alt="Avatar" className="w-full h-full object-cover" />
-                        </button>
-                      ))}
+                      </div>
+                      <div className="grid grid-cols-6 gap-4">
+                        {premiumAvatars.map((url, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setFormData({ ...formData, avatarUrl: url })}
+                            className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all hover:scale-105 ${formData.avatarUrl === url ? 'border-[#FF4F01] ring-2 ring-[#FF4F01]/20' : 'border-transparent opacity-80 hover:opacity-100'}`}
+                          >
+                            <img src={url} alt="Avatar" className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -294,23 +301,40 @@ const Settings: React.FC<SettingsProps> = ({ isDarkMode, userProfile, onUpdatePr
                   </div>
 
                   {formData.syncMethod === 'EA_CONNECT' && (
-                    <div className={`p-6 rounded-2xl border-2 border-dashed ${isDarkMode ? 'bg-zinc-900/50 border-zinc-800' : 'bg-slate-50 border-slate-200'}`}>
-                      <label className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3 block">Your Active Sync Key</label>
-                      <div className="flex items-center gap-4">
-                        <div className="font-mono text-xl font-black tracking-wider text-[#FF4F01]">
-                          {formData.syncKey || 'NOT_GENERATED'}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={handleCopyKey}
-                            className={`p-2 rounded-lg transition-all ${copiedKey ? 'bg-emerald-500 text-white' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500'}`}
-                            title="Copy Sync Key"
-                          >
-                            {copiedKey ? <Check size={16} /> : <Copy size={16} />}
-                          </button>
-                          <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest border ${formData.eaConnected ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'}`}>
-                            {formData.eaConnected ? 'Connected' : 'Disconnected'}
+                    <div className="space-y-6">
+                      <div className={`p-6 rounded-2xl border-2 border-dashed ${isDarkMode ? 'bg-zinc-900/50 border-zinc-800' : 'bg-slate-50 border-slate-200'}`}>
+                        <label className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-3 block">Your Active Sync Key</label>
+                        <div className="flex items-center gap-4">
+                          <div className="font-mono text-xl font-black tracking-wider text-[#FF4F01]">
+                            {formData.syncKey || 'NOT_GENERATED'}
                           </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={handleCopyKey}
+                              className={`p-2 rounded-lg transition-all ${copiedKey ? 'bg-emerald-500 text-white' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500'}`}
+                              title="Copy Sync Key"
+                            >
+                              {copiedKey ? <Check size={16} /> : <Copy size={16} />}
+                            </button>
+                            <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest border ${formData.eaConnected ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'}`}>
+                              {formData.eaConnected ? 'Connected' : 'Disconnected'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-slate-100 border-slate-200'}`}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-bold text-sm">Auto-Journal MT5 Trades</p>
+                            <p className="text-xs opacity-50">Automatically add closed trades to your journal.</p>
+                          </div>
+                          <button
+                            onClick={() => setFormData({ ...formData, autoJournal: !formData.autoJournal })}
+                            className={`w-12 h-6 rounded-full transition-all relative ${formData.autoJournal ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+                          >
+                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${formData.autoJournal ? 'right-1' : 'left-1'}`} />
+                          </button>
                         </div>
                       </div>
                     </div>

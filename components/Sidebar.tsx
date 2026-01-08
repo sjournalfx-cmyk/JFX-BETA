@@ -48,13 +48,53 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <div className={`h-full w-[72px] flex flex-col items-center py-6 border-r z-[100] transition-all duration-300 relative ${isDarkMode
-        ? 'bg-[#050505] border-zinc-800 shadow-[4px_0_24px_rgba(0,0,0,0.5)]'
-        : 'bg-white border-slate-200 shadow-[4px_0_24px_rgba(0,0,0,0.02)]'
+      ? 'bg-[#050505] border-zinc-800 shadow-[4px_0_24px_rgba(0,0,0,0.5)]'
+      : 'bg-white border-slate-200 shadow-[4px_0_24px_rgba(0,0,0,0.02)]'
       }`}>
+      <style>{`
+        @keyframes heartbeat {
+            0% { transform: scale(1); opacity: 0.4; }
+            15% { transform: scale(1.1); opacity: 1; }
+            30% { transform: scale(1); opacity: 0.4; }
+            45% { transform: scale(1.15); opacity: 1; }
+            60% { transform: scale(1); opacity: 0.4; }
+            100% { transform: scale(1); opacity: 0.4; }
+        }
+        @keyframes pulse-line {
+            0% { stroke-dashoffset: 100; opacity: 0.2; }
+            20% { stroke-dashoffset: 0; opacity: 1; }
+            40% { stroke-dashoffset: -100; opacity: 0.2; }
+            100% { stroke-dashoffset: -100; opacity: 0.2; }
+        }
+      `}</style>
 
 
       {/* Primary Navigation */}
       <nav className="flex-1 flex flex-col gap-3 w-full px-3 overflow-y-visible">
+
+        {/* Live Pulse Animation */}
+        <div className="flex items-center justify-center w-full mb-2">
+          <div className="w-10 h-10 rounded-full border border-emerald-500/10 flex items-center justify-center relative">
+            <div className="relative flex items-center justify-center" style={{ animation: 'heartbeat 2s infinite ease-in-out' }}>
+              <svg width="24" height="16" viewBox="0 0 60 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M0 20H15L18 28L24 8L30 35L34 20H60"
+                  stroke="#10b981"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    strokeDasharray: '100',
+                    animation: 'pulse-line 2s infinite linear',
+                    filter: 'drop-shadow(0 0 8px rgba(16, 185, 129, 0.6))'
+                  }}
+                />
+              </svg>
+            </div>
+            <div className="absolute inset-0 rounded-full border border-emerald-500/20 animate-ping" />
+          </div>
+        </div>
+
         {visibleMenuItems.map((item) => {
           const isActive = currentView === item.id;
           return (

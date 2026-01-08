@@ -253,9 +253,16 @@ const Dashboard: React.FC<DashboardProps> = ({ isDarkMode, trades, dailyBias, on
                     <div className={`h-full p-6 rounded-2xl border flex flex-col ${isDarkMode ? 'bg-[#18181b] border-[#27272a]' : 'bg-white border-slate-100 shadow-md'}`}>
                         <h3 className="font-bold mb-4 flex items-center gap-2"><Activity size={18} className="text-emerald-500" /> Open Positions</h3>
                         <OpenPositions
-                            positions={eaSession?.data?.openPositions || []}
+                            positions={(eaSession?.data?.openPositions || []).map((p: any) => ({
+                                ...p,
+                                lots: p.volume,
+                                openPrice: p.open_price,
+                                currentPrice: p.current_price,
+                                profit: p.profit
+                            }))}
                             isDarkMode={isDarkMode}
                             currencySymbol={userProfile.currencySymbol}
+                            lastUpdated={eaSession?.lastUpdated}
                         />
                     </div>
                 );

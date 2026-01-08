@@ -41,26 +41,28 @@ const Bridge: React.FC<BridgeProps> = ({ isDarkMode, userProfile, onUpdateProfil
             fetchSession();
 
             const channel = supabase
-                .channel('bridge_live_monitor')
+                .channel('bridge_live_monitor_global')
                 .on('postgres_changes', {
                     event: '*',
                     schema: 'public',
-                    table: 'ea_sessions',
-                    filter: `syncKey=eq.${syncKey}`
+                    table: 'ea_sessions'
                 }, (payload) => {
-                    const newData = (payload.new as any).data;
-                    setLiveData(newData);
-                    setLastHeartbeat(new Date((payload.new as any).lastUpdated));
+                    // Manual filter for robustness
+                    if (payload.new && (payload.new as any).syncKey === syncKey) {
+                        const newData = (payload.new as any).data;
+                        setLiveData(newData);
+                        setLastHeartbeat(new Date((payload.new as any).lastUpdated));
 
-                    // Add entry to log
-                    const isHeartbeat = newData.isHeartbeat;
-                    const tradeCount = newData.trades?.length || 0;
-                    const msg = isHeartbeat ? 'Heartbeat received' : `Synced ${tradeCount} trades from terminal`;
+                        // Add entry to log
+                        const isHeartbeat = newData.isHeartbeat;
+                        const tradeCount = newData.trades?.length || 0;
+                        const msg = isHeartbeat ? 'Heartbeat received' : `Synced ${tradeCount} trades from terminal`;
 
-                    setSyncLog(prev => [
-                        { time: new Date(), message: msg, type: 'success' },
-                        ...prev
-                    ].slice(0, 5));
+                        setSyncLog(prev => [
+                            { time: new Date(), message: msg, type: 'success' },
+                            ...prev
+                        ].slice(0, 5));
+                    }
                 })
                 .subscribe();
 
@@ -177,8 +179,9 @@ const BridgeMonitor = ({ isDarkMode, liveData, lastHeartbeat, syncKey, syncLog, 
     };
 
     return (
-        <div className="animate-in fade-in duration-500 max-w-5xl w-full mx-auto p-8">
-            <div className="flex items-center justify-between mb-12">
+        <div className="w-full h-full overflow-y-auto custom-scrollbar">
+            <div className="animate-in fade-in duration-500 max-w-5xl w-full mx-auto p-8">
+                <div className="flex items-center justify-between mb-12">
                 <div>
                     <div className="flex items-center gap-3 mb-2">
                         <h1 className="text-4xl font-black tracking-tight">Desktop Bridge</h1>
@@ -407,6 +410,7 @@ const BridgeMonitor = ({ isDarkMode, liveData, lastHeartbeat, syncKey, syncLog, 
                 </p>
             </div>
         </div>
+        </div>
     );
 };
 
@@ -455,16 +459,17 @@ const BridgeWizard = ({ isDarkMode, onComplete, userProfile }: any) => {
     const apiKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
     return (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl w-full mx-auto p-8">
-            <div className="mb-12">
-                <h1 className="text-5xl font-black tracking-tight mb-4 italic">Desktop Bridge</h1>
-                <div className="flex items-center gap-4">
-                    <p className={`text-lg ${subTextColor}`}>Connect MT5 to JournalFX using our secure Python bridge.</p>
-                    <div className="px-3 py-1 rounded bg-blue-500/10 text-blue-500 text-[10px] font-black uppercase tracking-widest border border-blue-500/20">
-                        Windows Only
+        <div className="w-full h-full overflow-y-auto custom-scrollbar">
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl w-full mx-auto p-8">
+                <div className="mb-12">
+                    <h1 className="text-5xl font-black tracking-tight mb-4 italic">Desktop Bridge</h1>
+                    <div className="flex items-center gap-4">
+                        <p className={`text-lg ${subTextColor}`}>Connect MT5 to JournalFX using our secure Python bridge.</p>
+                        <div className="px-3 py-1 rounded bg-blue-500/10 text-blue-500 text-[10px] font-black uppercase tracking-widest border border-blue-500/20">
+                            Windows Only
+                        </div>
                     </div>
                 </div>
-            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
                 <div className="lg:col-span-4 space-y-3">
@@ -678,6 +683,7 @@ const BridgeWizard = ({ isDarkMode, onComplete, userProfile }: any) => {
                     </div>
                 </div>
             </div>
+        </div>
         </div>
     );
 };

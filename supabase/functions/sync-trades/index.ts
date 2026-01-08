@@ -43,7 +43,7 @@ serve(async (req) => {
         // 2. Verify sync key exists in profiles
         const { data: profile, error: profileError } = await supabaseClient
             .from('profiles')
-            .select('id, name')
+            .select('id, name, auto_journal')
             .eq('sync_key', syncKey)
             .single();
 
@@ -89,8 +89,8 @@ serve(async (req) => {
             })
         }
 
-        // 4. Sync Trades History to 'trades' table
-        if (trades && trades.length > 0) {
+        // 4. Sync Trades History to 'trades' table (Only if Auto-Journal is enabled)
+        if (profile.auto_journal && trades && trades.length > 0) {
             // Get existing trade ticket IDs for this user to avoid duplicates
             const { data: recentTrades } = await supabaseClient
                 .from('trades')
@@ -107,26 +107,29 @@ serve(async (req) => {
                 if (existingTickets.has(String(trade.ticket))) continue;
 
                 // Map MT5 trade to DB schema
+                // Calculate Net PnL (Profit + Swap + Commission)
+                const netPnL = Number((trade.profit + (trade.swap || 0) + (trade.commission || 0)).toFixed(2));
+                
                 const dbTrade = {
                     user_id: profile.id,
                     ticket_id: String(trade.ticket),
                     pair: trade.symbol,
                     asset_type: 'Forex', 
                     date: new Date(trade.time * 1000).toISOString().split('T')[0],
-                    time: new Date(trade.time * 1000).toISOString().split('T')[1].split('.')[0],
+                    time: new Date(trade.time * 1000).toTimeString().split(' ')[0],
                     session: 'New York', // Placeholder
                     direction: trade.type === 'BUY' ? 'Long' : 'Short',
-                    entry_price: trade.price, 
+                    entry_price: trade.entry_price || trade.price, 
                     exit_price: trade.price,
                     stop_loss: 0,
                     take_profit: 0,
                     lots: trade.volume,
-                    result: trade.profit >= 0 ? 'Win' : 'Loss',
-                    pnl: trade.profit,
+                    result: netPnL >= 0 ? 'Win' : 'Loss',
+                    pnl: netPnL,
                     rr: 0,
                     rating: 0,
-                    tags: ['MT5_Sync', 'Auto'],
-                    notes: `Order: #${trade.order}`,
+                    tags: ['MT5_Auto_Journal'],
+                    notes: `Auto-journaled from MT5. Deal #${trade.ticket} | Order #${trade.order}`,
                     plan_adherence: 'No Plan',
                 };
                 

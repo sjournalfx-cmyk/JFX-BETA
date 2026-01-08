@@ -131,7 +131,7 @@ const ComparisonView = ({ trades = [], isDarkMode, currencySymbol = '$' }: { tra
         const netProfit = grossProfit - grossLoss;
         const winRate = (wins.length / total) * 100;
         const profitFactor = grossLoss > 0 ? (grossProfit / grossLoss) : (grossProfit > 0 ? 9.9 : 0);
-        
+
         return { netProfit, winRate, profitFactor, total: tradesList.length };
     };
 
@@ -144,8 +144,8 @@ const ComparisonView = ({ trades = [], isDarkMode, currencySymbol = '$' }: { tra
         if (previous === 0) return { direction: null, percent: null };
         const diff = current - previous;
         const percent = (diff / Math.abs(previous)) * 100;
-        return { 
-            direction: diff >= 0 ? 'up' : 'down', 
+        return {
+            direction: diff >= 0 ? 'up' : 'down',
             percent: Math.abs(percent).toFixed(1)
         };
     };
@@ -222,12 +222,12 @@ const ComparisonView = ({ trades = [], isDarkMode, currencySymbol = '$' }: { tra
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {[
-                    { 
-                        label: symbolA, 
-                        stats: statsA, 
+                    {
+                        label: symbolA,
+                        stats: statsA,
                         trend: trendA,
-                        color: 'text-indigo-500', 
-                        bg: 'bg-indigo-500/10', 
+                        color: 'text-indigo-500',
+                        bg: 'bg-indigo-500/10',
                         range: rangeA,
                         isWinner: {
                             netProfit: statsA.netProfit > statsB.netProfit,
@@ -236,12 +236,12 @@ const ComparisonView = ({ trades = [], isDarkMode, currencySymbol = '$' }: { tra
                             total: statsA.total > statsB.total
                         }
                     },
-                    { 
-                        label: symbolB, 
-                        stats: statsB, 
+                    {
+                        label: symbolB,
+                        stats: statsB,
                         trend: trendB,
-                        color: 'text-amber-500', 
-                        bg: 'bg-amber-500/10', 
+                        color: 'text-amber-500',
+                        bg: 'bg-amber-500/10',
                         range: rangeB,
                         isWinner: {
                             netProfit: statsB.netProfit > statsA.netProfit,
@@ -486,8 +486,8 @@ const MonthlyPerformanceWidget = ({ trades = [], isDarkMode, currencySymbol = '$
                         const isHovered = hoveredMonth === d.month;
 
                         return (
-                            <div 
-                                key={i} 
+                            <div
+                                key={i}
                                 className="relative flex flex-col items-center flex-1 h-full group cursor-pointer"
                                 onMouseEnter={() => setHoveredMonth(d.month)}
                                 onMouseLeave={() => setHoveredMonth(null)}
@@ -651,8 +651,8 @@ const CurrencyStrengthMeter = ({ isDarkMode, trades = [] }: { isDarkMode: boolea
             ) : (
                 <div className="space-y-4 flex-1 justify-center flex flex-col">
                     {strengths.map((item) => (
-                        <div 
-                            key={item.cur} 
+                        <div
+                            key={item.cur}
                             className="flex items-center gap-3 group cursor-pointer"
                             onMouseEnter={() => setHoveredCur(item.cur)}
                             onMouseLeave={() => setHoveredCur(null)}
@@ -663,8 +663,8 @@ const CurrencyStrengthMeter = ({ isDarkMode, trades = [] }: { isDarkMode: boolea
                             <div className={`flex-1 h-2 rounded-full overflow-hidden transition-all duration-300 ${isDarkMode ? 'bg-zinc-800' : 'bg-slate-100'} ${hoveredCur === item.cur ? 'h-3' : ''}`}>
                                 <div
                                     className={`h-full rounded-full transition-all duration-1000 ${item.val > 7 ? 'bg-emerald-500' :
-                                            item.val > 4 ? 'bg-blue-500' :
-                                                item.val > 2 ? 'bg-amber-500' : 'bg-rose-500'
+                                        item.val > 4 ? 'bg-blue-500' :
+                                            item.val > 2 ? 'bg-amber-500' : 'bg-rose-500'
                                         } ${hoveredCur === item.cur ? 'brightness-110 shadow-lg' : ''}`}
                                     style={{ width: `${Math.max(5, item.val * 10)}%` }}
                                 />
@@ -744,10 +744,10 @@ const TradeExitAnalysisWidget = ({ trades = [], isDarkMode }: { trades: Trade[],
                         const isHovered = hoveredKey === d.key;
 
                         return (
-                            <path 
-                                key={i} 
-                                d={pathData} 
-                                fill={d.color} 
+                            <path
+                                key={i}
+                                d={pathData}
+                                fill={d.color}
                                 className={`transition-all duration-300 cursor-pointer ${isHovered ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
                                 style={{ transform: isHovered ? 'scale(1.05)' : 'scale(1)', transformOrigin: 'center' }}
                                 onMouseEnter={() => setHoveredKey(d.key)}
@@ -769,7 +769,7 @@ const TradeExitAnalysisWidget = ({ trades = [], isDarkMode }: { trades: Trade[],
                         </div>
                     </div>
                 )}
-                
+
                 <div className="grid grid-cols-2 gap-x-12 gap-y-4 mt-8 w-full px-4">
                     {exitData.map((d, i) => (
                         <div key={i} className={`flex items-center gap-3 transition-all duration-300 ${hoveredKey === d.key ? 'scale-105' : 'opacity-80'}`}>
@@ -848,7 +848,7 @@ const PerformanceByPairWidget = ({ trades = [], isDarkMode, currencySymbol = '$'
             if (!trade.pair) return;
             // Normalize pair name: remove special chars, uppercase
             const pair = trade.pair.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-            
+
             if (!pairStats[pair]) {
                 pairStats[pair] = { profit: 0, loss: 0 };
             }
@@ -872,10 +872,10 @@ const PerformanceByPairWidget = ({ trades = [], isDarkMode, currencySymbol = '$'
     const allValues = pairData.flatMap(d => [d.profit, -d.loss]);
     const maxVal = allValues.length ? Math.max(...allValues, 100) : 100;
     const minVal = allValues.length ? Math.min(...allValues, -100) : -100;
-    
+
     // Add 10% padding to range for visuals
     const range = (maxVal - minVal) * 1.1 || 1;
-    
+
     // Calculate zero line position (percentage from top)
     // Formula: The distance from maxVal to 0, divided by total range
     const zeroY = ((maxVal) / range) * 100;
@@ -904,12 +904,12 @@ const PerformanceByPairWidget = ({ trades = [], isDarkMode, currencySymbol = '$'
 
                     {/* Scrollable Chart Area */}
                     <div className="flex-1 ml-14 overflow-x-auto custom-scrollbar relative">
-                        <div 
-                            className="h-full relative pb-8 px-4" 
+                        <div
+                            className="h-full relative pb-8 px-4"
                             style={{ width: `${Math.max(100, pairData.length * 80)}px`, minWidth: '100%' }} // Dynamic width
                         >
                             {/* Zero Line */}
-                            <div 
+                            <div
                                 className="absolute left-0 right-0 border-t border-white/20 z-10"
                                 style={{ top: `${zeroY}%` }}
                             />
@@ -956,7 +956,7 @@ const PerformanceByPairWidget = ({ trades = [], isDarkMode, currencySymbol = '$'
                                                     />
                                                 )}
                                             </div>
-                                            
+
                                             {/* X-Axis Label */}
                                             <span className={`absolute bottom-[-24px] text-[9px] font-bold transition-all duration-300 whitespace-nowrap ${isHovered ? 'opacity-100 scale-110 text-indigo-500' : 'opacity-40'}`}>
                                                 {d.pair}
@@ -1036,7 +1036,7 @@ const LargestWinLossWidget = ({ trades = [], isDarkMode, currencySymbol = '$' }:
 const MomentumStreakWidget = ({ trades = [], isDarkMode }: { trades: Trade[], isDarkMode: boolean }) => {
     const stats = useMemo(() => {
         const sortedTrades = [...trades].sort((a, b) => new Date(`${a.date}T${a.time || '00:00'}`).getTime() - new Date(`${b.date}T${b.time || '00:00'}`).getTime());
-        
+
         let longestWin = 0;
         let longestLoss = 0;
         let tempWin = 0;
@@ -1060,7 +1060,7 @@ const MomentumStreakWidget = ({ trades = [], isDarkMode }: { trades: Trade[], is
         // Current streak
         let currentStreakValue = 0;
         let currentStreakType: 'Win' | 'Loss' | 'BE' | 'Pending' | null = null;
-        
+
         const lastTrades = [...sortedTrades].reverse();
         if (lastTrades.length > 0) {
             currentStreakType = lastTrades[0].result;
@@ -1083,108 +1083,108 @@ const MomentumStreakWidget = ({ trades = [], isDarkMode }: { trades: Trade[], is
         const startOfWeek = new Date(now);
         startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
         startOfWeek.setHours(0, 0, 0, 0);
-        
+
         const tradesThisWeek = trades.filter(t => new Date(t.date) >= startOfWeek).length;
         const weeklyGoal = 15;
         const weeklyProgress = Math.min(100, (tradesThisWeek / weeklyGoal) * 100);
 
-        return { longestWin, longestLoss, currentStreakType, currentStreakValue, isRecovery, tradesThisWeek, weeklyGoal, weeklyProgress, recent: sortedTrades.slice(-48) };
+        // Increase capacity to 60 for denser grid
+        return { longestWin, longestLoss, currentStreakType, currentStreakValue, isRecovery, tradesThisWeek, weeklyGoal, weeklyProgress, recent: sortedTrades.slice(-60) };
     }, [trades]);
 
     return (
-        <div className={`p-8 rounded-[32px] border flex flex-col h-full min-h-[320px] ${isDarkMode ? 'bg-[#18181b] border-zinc-800 shadow-2xl' : 'bg-white border-slate-200 shadow-md'}`}>
-            <div className="flex items-center justify-between mb-8">
+        <div className={`p-6 rounded-[24px] border flex flex-col h-full min-h-[280px] ${isDarkMode ? 'bg-[#18181b] border-zinc-800 shadow-2xl' : 'bg-white border-slate-200 shadow-md'}`}>
+            <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h3 className="text-xl font-bold tracking-tight">Trade Momentum</h3>
-                    <p className="text-[10px] uppercase font-bold tracking-widest opacity-40 mt-1">Outcome History</p>
+                    <h3 className="text-lg font-bold tracking-tight">Trade Momentum</h3>
+                    <p className="text-[10px] uppercase font-bold tracking-widest opacity-40 mt-0.5">Outcome History</p>
                 </div>
                 <div className="flex gap-4 text-[9px] font-black uppercase tracking-tighter">
                     <div className="flex flex-col items-end">
                         <span className="opacity-40">Max Win Streak</span>
-                        <span className="text-emerald-500 text-sm">{stats.longestWin}</span>
+                        <span className="text-emerald-500 text-xs">{stats.longestWin}</span>
                     </div>
                     <div className="flex flex-col items-end">
                         <span className="opacity-40">Max Loss Streak</span>
-                        <span className="text-rose-500 text-sm">{stats.longestLoss}</span>
+                        <span className="text-rose-500 text-xs">{stats.longestLoss}</span>
                     </div>
                 </div>
             </div>
 
             <div className="flex-1 flex flex-col items-center justify-center">
-                <div className="grid grid-cols-8 sm:grid-cols-12 md:grid-cols-16 lg:grid-cols-24 gap-1.5 w-full">
+                {/* Denser Grid: 15 cols mobile, 20 sm, 30 md */}
+                <div className="grid grid-cols-15 sm:grid-cols-20 md:grid-cols-30 gap-1 w-full">
                     {stats.recent.map((t, i) => (
-                        <div 
+                        <div
                             key={t.id}
-                            className={`w-full aspect-square rounded-md transition-all duration-500 group relative ${
-                                t.result === 'Win' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.1)]' :
-                                t.result === 'Loss' ? 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.1)]' :
-                                t.result === 'BE' ? 'bg-zinc-500 opacity-40' : 'bg-indigo-500 opacity-20'
-                            } ${i === stats.recent.length - 1 ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-transparent animate-pulse' : 'hover:scale-110 hover:brightness-110'}`}
+                            className={`w-full aspect-square rounded-[2px] transition-all duration-500 group relative ${t.result === 'Win' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.1)]' :
+                                t.result === 'Loss' ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.1)]' :
+                                    t.result === 'BE' ? 'bg-zinc-500 opacity-40' : 'bg-indigo-500 opacity-20'
+                                } ${i === stats.recent.length - 1 ? 'ring-1 ring-indigo-500 ring-offset-1 ring-offset-transparent animate-pulse' : 'hover:scale-125 hover:z-10 hover:brightness-110'}`}
                         >
                             <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 rounded bg-black text-[8px] font-bold text-white opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
-                                {t.pair} | {t.result}
+                                {t.pair}
                             </div>
                         </div>
                     ))}
-                    {Array.from({ length: Math.max(0, 48 - stats.recent.length) }).map((_, i) => (
-                        <div key={`empty-${i}`} className={`w-full aspect-square rounded-md border border-dashed ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`} />
+                    {Array.from({ length: Math.max(0, 60 - stats.recent.length) }).map((_, i) => (
+                        <div key={`empty-${i}`} className={`w-full aspect-square rounded-[2px] border border-dashed ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`} />
                     ))}
                 </div>
 
                 {stats.isRecovery && (
-                    <div className="mt-4 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2 animate-bounce">
-                        <Award size={14} className="text-emerald-500" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500">
-                            Streak Recovery: +{currencySymbol}{stats.recoveredAmount.toLocaleString()} Recovered. Cycle Broken.
+                    <div className="mt-3 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-2 animate-bounce">
+                        <Award size={12} className="text-emerald-500" />
+                        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500">
+                            Recovered. Cycle Broken.
                         </span>
                     </div>
                 )}
             </div>
 
-            <div className="mt-8 pt-6 border-t border-white/5 space-y-6">
+            <div className="mt-6 pt-4 border-t border-white/5 space-y-4">
                 <div className="flex justify-between items-end">
                     <div>
-                        <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">Current Streak</span>
-                        <div className="flex items-center gap-3 mt-1">
+                        <span className="text-[9px] font-bold uppercase tracking-widest opacity-40">Current Streak</span>
+                        <div className="flex items-center gap-2 mt-0.5">
                             <div className="flex items-baseline gap-2">
-                                <span className={`text-4xl font-black transition-all duration-500 ${
-                                    stats.currentStreakType === 'Win' ? 'text-emerald-500' : 
+                                <span className={`text-3xl font-black transition-all duration-500 ${stats.currentStreakType === 'Win' ? 'text-emerald-500' :
                                     stats.currentStreakType === 'Loss' ? 'text-rose-500' : 'text-zinc-500'
-                                } ${stats.currentStreakValue >= 3 ? (stats.currentStreakType === 'Win' ? 'drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'drop-shadow-[0_0_10px_rgba(244,63,94,0.5)]') : ''}`}>
+                                    }`}>
                                     {stats.currentStreakValue}
                                 </span>
-                                <span className="text-xs font-bold opacity-60 uppercase tracking-widest">
+                                <span className="text-[10px] font-bold opacity-60 uppercase tracking-widest">
                                     {stats.currentStreakType === 'Win' ? 'Wins' : stats.currentStreakType === 'Loss' ? 'Losses' : stats.currentStreakType || 'Trades'}
                                 </span>
                             </div>
-                            
+
                             {stats.currentStreakType === 'Win' && stats.currentStreakValue >= 3 && (
                                 <div className="animate-bounce text-orange-500">
-                                    <Flame size={24} fill="currentColor" />
+                                    <Flame size={18} fill="currentColor" />
                                 </div>
                             )}
                             {stats.currentStreakType === 'Loss' && stats.currentStreakValue >= 3 && (
                                 <div className="animate-pulse text-blue-400">
-                                    <Snowflake size={24} />
+                                    <Snowflake size={18} />
                                 </div>
                             )}
                         </div>
                     </div>
-                    <div className={`p-3 rounded-2xl ${isDarkMode ? 'bg-white/5' : 'bg-slate-50'}`}>
-                        <Activity size={24} className={stats.currentStreakType === 'Win' ? 'text-emerald-500' : stats.currentStreakType === 'Loss' ? 'text-rose-500' : 'opacity-20'} />
+                    <div className={`p-2 rounded-xl ${isDarkMode ? 'bg-white/5' : 'bg-slate-50'}`}>
+                        <Activity size={18} className={stats.currentStreakType === 'Win' ? 'text-emerald-500' : stats.currentStreakType === 'Loss' ? 'text-rose-500' : 'opacity-20'} />
                     </div>
                 </div>
 
                 {/* Weekly Goal Progress */}
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                     <div className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest">
                         <span className="opacity-40">Weekly Volume Goal</span>
                         <span className={stats.tradesThisWeek >= stats.weeklyGoal ? 'text-emerald-500' : 'opacity-60'}>
-                            {stats.tradesThisWeek} / {stats.weeklyGoal} Trades
+                            {stats.tradesThisWeek} / {stats.weeklyGoal}
                         </span>
                     </div>
-                    <div className={`h-1.5 w-full rounded-full overflow-hidden ${isDarkMode ? 'bg-white/5' : 'bg-slate-100'}`}>
-                        <div 
+                    <div className={`h-1 w-full rounded-full overflow-hidden ${isDarkMode ? 'bg-white/5' : 'bg-slate-100'}`}>
+                        <div
                             className={`h-full transition-all duration-1000 ease-out rounded-full ${stats.tradesThisWeek >= stats.weeklyGoal ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-indigo-500'}`}
                             style={{ width: `${stats.weeklyProgress}%` }}
                         />
@@ -1316,7 +1316,7 @@ const TiltScoreWidget = ({ trades = [], isDarkMode }: { trades: Trade[], isDarkM
     const scoreData = useMemo(() => {
         const safeTrades = trades || [];
         if (safeTrades.length === 0) return { score: 100, label: 'No Data', message: 'Start logging trades to see your tilt score.' };
-        
+
         let totalScore = 0;
         let count = 0;
 
@@ -1337,13 +1337,13 @@ const TiltScoreWidget = ({ trades = [], isDarkMode }: { trades: Trade[], isDarkM
         });
 
         const score = count > 0 ? Math.round(totalScore / count) : 100;
-        
+
         let label = 'Poor';
         let message = 'Your discipline needs immediate attention.';
         if (score >= 90) { label = 'Elite'; message = 'Ice in your veins. Keep it up.'; }
         else if (score >= 75) { label = 'Good'; message = 'Solid discipline, watch out for small slips.'; }
         else if (score >= 60) { label = 'Average'; message = 'Inconsistent. Focus on following your plan.'; }
-        
+
         return { score, label, message };
     }, [trades]);
 
@@ -1353,14 +1353,14 @@ const TiltScoreWidget = ({ trades = [], isDarkMode }: { trades: Trade[], isDarkM
             <div className="relative w-48 h-48 mb-6">
                 <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
                     <circle cx="50" cy="50" r="45" fill="transparent" stroke={isDarkMode ? "#1a1a1f" : "#f1f5f9"} strokeWidth="8" />
-                    <circle 
-                        cx="50" cy="50" r="45" 
-                        fill="transparent" 
-                        stroke={scoreData.score > 80 ? "#10b981" : scoreData.score > 50 ? "#f59e0b" : "#f43f5e"} 
-                        strokeWidth="8" 
-                        strokeDasharray={`${(scoreData.score / 100) * 283} 283`} 
-                        strokeLinecap="round" 
-                        className="transition-all duration-1000 ease-out" 
+                    <circle
+                        cx="50" cy="50" r="45"
+                        fill="transparent"
+                        stroke={scoreData.score > 80 ? "#10b981" : scoreData.score > 50 ? "#f59e0b" : "#f43f5e"}
+                        strokeWidth="8"
+                        strokeDasharray={`${(scoreData.score / 100) * 283} 283`}
+                        strokeLinecap="round"
+                        className="transition-all duration-1000 ease-out"
                     />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -1384,9 +1384,9 @@ const PerformanceRadarWidget = ({ trades = [], isDarkMode }: { trades: Trade[], 
         const safeTrades = trades || [];
         const mindsets = ['Confident', 'Neutral', 'Hesitant', 'Anxious', 'FOMO'];
         const stats: Record<string, { total: number, count: number }> = {};
-        
+
         mindsets.forEach(m => stats[m] = { total: 0, count: 0 });
-        
+
         safeTrades.forEach(trade => {
             const m = trade.mindset || 'Neutral';
             if (stats[m]) {
@@ -1402,20 +1402,20 @@ const PerformanceRadarWidget = ({ trades = [], isDarkMode }: { trades: Trade[], 
         return mindsets.map((m, i) => {
             const angle = (i / mindsets.length) * 2 * Math.PI - Math.PI / 2;
             const rawValue = stats[m].count > 0 ? stats[m].total : 0;
-            
+
             // Normalize: 0.5 is center (Break Even)
             let normalizedValue = 0.5;
             if (maxAbs > 0) {
                 normalizedValue = 0.5 + (rawValue / (2 * maxAbs));
             }
-            
+
             // Clamp
             normalizedValue = Math.max(0.1, Math.min(0.95, normalizedValue));
 
-            return { 
-                mindset: m, 
-                x: Math.cos(angle), 
-                y: Math.sin(angle), 
+            return {
+                mindset: m,
+                x: Math.cos(angle),
+                y: Math.sin(angle),
                 value: normalizedValue,
                 rawValue
             };
@@ -1434,7 +1434,7 @@ const PerformanceRadarWidget = ({ trades = [], isDarkMode }: { trades: Trade[], 
                     {[0.25, 0.5, 0.75, 1].map((r, i) => (
                         <circle key={i} cx="50" cy="50" r={r * 50} fill="none" stroke={isDarkMode ? "white" : "black"} strokeOpacity="0.05" strokeWidth="0.5" />
                     ))}
-                    
+
                     {/* Zero Line (Break Even) - Slightly distinct */}
                     <polygon points={zeroPoints} fill="none" stroke={isDarkMode ? "white" : "black"} strokeOpacity="0.1" strokeWidth="1" strokeDasharray="2 2" />
 
@@ -1445,16 +1445,16 @@ const PerformanceRadarWidget = ({ trades = [], isDarkMode }: { trades: Trade[], 
 
                     {/* Data Shape - Cleaner Look */}
                     <polygon points={points} fill="rgba(99, 102, 241, 0.1)" stroke="#6366f1" strokeWidth="1.5" strokeLinejoin="round" />
-                    
+
                     {/* Data Points - Technical Look */}
                     {radarData.map((d, i) => (
-                        <circle 
-                            key={i} 
-                            cx={50 + d.x * d.value * 50} 
-                            cy={50 + d.y * d.value * 50} 
-                            r="2.5" 
-                            fill={isDarkMode ? "#0d1117" : "white"} 
-                            stroke="#6366f1" 
+                        <circle
+                            key={i}
+                            cx={50 + d.x * d.value * 50}
+                            cy={50 + d.y * d.value * 50}
+                            r="2.5"
+                            fill={isDarkMode ? "#0d1117" : "white"}
+                            stroke="#6366f1"
                             strokeWidth="1"
                             className="cursor-pointer hover:stroke-[2px] transition-all duration-200"
                             onMouseEnter={() => setHoveredNode({ mindset: d.mindset, value: d.rawValue, x: 50 + d.x * d.value * 50, y: 50 + d.y * d.value * 50 })}
@@ -1464,13 +1464,13 @@ const PerformanceRadarWidget = ({ trades = [], isDarkMode }: { trades: Trade[], 
 
                     {/* Labels */}
                     {radarData.map((d, i) => (
-                        <text 
-                            key={i} 
-                            x={50 + d.x * 58} 
-                            y={50 + d.y * 58} 
-                            textAnchor="middle" 
-                            dominantBaseline="middle" 
-                            className="text-[5px] font-bold uppercase tracking-wider opacity-50 font-mono" 
+                        <text
+                            key={i}
+                            x={50 + d.x * 58}
+                            y={50 + d.y * 58}
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            className="text-[5px] font-bold uppercase tracking-wider opacity-50 font-mono"
                             fill={isDarkMode ? "white" : "black"}
                         >
                             {d.mindset}
@@ -1480,11 +1480,11 @@ const PerformanceRadarWidget = ({ trades = [], isDarkMode }: { trades: Trade[], 
 
                 {/* Tooltip Overlay */}
                 {hoveredNode && (
-                    <div 
+                    <div
                         className={`absolute z-50 px-3 py-2 rounded-lg text-xs font-bold pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2 shadow-xl border ${isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
-                        style={{ 
-                            left: `${(hoveredNode.x / 100) * 100}%`, 
-                            top: `${(hoveredNode.y / 100) * 100}%` 
+                        style={{
+                            left: `${(hoveredNode.x / 100) * 100}%`,
+                            top: `${(hoveredNode.y / 100) * 100}%`
                         }}
                     >
                         <div className="opacity-60 text-[10px] uppercase tracking-wider mb-0.5">{hoveredNode.mindset}</div>
@@ -1496,8 +1496,8 @@ const PerformanceRadarWidget = ({ trades = [], isDarkMode }: { trades: Trade[], 
             </div>
             {/* Legend - Simplified */}
             <div className="mt-10 flex items-center gap-2 text-xs opacity-40 font-mono">
-                 <div className="w-2 h-0.5 bg-indigo-500"></div>
-                 <span>Performance Envelope</span>
+                <div className="w-2 h-0.5 bg-indigo-500"></div>
+                <span>Performance Envelope</span>
             </div>
         </div>
     );
@@ -1531,17 +1531,17 @@ const PLByMindsetWidget = ({ trades = [], isDarkMode, currencySymbol = '$' }: { 
     const allValues = mindsetData.map(d => d.net);
     const maxVal = allValues.length ? Math.max(...allValues, 100) : 100;
     const minVal = allValues.length ? Math.min(...allValues, -100) : -100;
-    
+
     // Add padding to range
     const range = (maxVal - minVal) * 1.2 || 1;
     const zeroY = (maxVal / range) * 100;
-    
+
     const hoveredData = hoveredMindset ? mindsetData.find(d => d.mindset === hoveredMindset) : null;
 
     return (
         <div className={`p-6 rounded-[24px] border flex flex-col min-h-[400px] ${isDarkMode ? 'bg-[#0d1117] border-zinc-800' : 'bg-white border-slate-200 shadow-md'}`}>
             <h3 className="text-xl font-bold tracking-tight mb-8">P/L by Mindset</h3>
-            
+
             <div className="flex-1 flex relative overflow-hidden">
                 {/* Y-Axis Labels */}
                 <div className="w-12 flex flex-col justify-between text-[10px] font-mono opacity-40 pb-8 border-r border-dashed border-white/5 pr-2 z-20">
@@ -1553,33 +1553,33 @@ const PLByMindsetWidget = ({ trades = [], isDarkMode, currencySymbol = '$' }: { 
                 {/* Chart Area */}
                 <div className="flex-1 relative ml-2">
                     {/* Zero Line */}
-                    <div 
-                        className="absolute left-0 right-0 border-t border-white/20 z-10" 
-                        style={{ top: `${zeroY}%` }} 
+                    <div
+                        className="absolute left-0 right-0 border-t border-white/20 z-10"
+                        style={{ top: `${zeroY}%` }}
                     />
-                    
+
                     {/* Bars Container */}
                     <div className="absolute inset-0 flex items-end justify-around pb-8">
                         {mindsetData.map((d, i) => {
                             const netHeight = (Math.abs(d.net) / range) * 100;
                             const isPositive = d.net >= 0;
                             const isHovered = hoveredMindset === d.mindset;
-                            
+
                             return (
-                                <div 
-                                    key={i} 
+                                <div
+                                    key={i}
                                     className="relative flex flex-col items-center flex-1 h-full group cursor-pointer"
-                                    onMouseEnter={() => setHoveredMindset(d.mindset)} 
+                                    onMouseEnter={() => setHoveredMindset(d.mindset)}
                                     onMouseLeave={() => setHoveredMindset(null)}
                                 >
                                     <div className="relative w-full h-full z-10">
-                                        <div 
-                                            className={`absolute left-1/2 -translate-x-1/2 w-8 transition-all duration-500 rounded-sm ${isPositive ? 'bg-emerald-500' : 'bg-rose-500'} ${isHovered ? 'brightness-125 scale-x-110 shadow-lg' : 'opacity-80'}`} 
-                                            style={{ 
-                                                height: `${Math.max(2, netHeight)}%`, 
+                                        <div
+                                            className={`absolute left-1/2 -translate-x-1/2 w-8 transition-all duration-500 rounded-sm ${isPositive ? 'bg-emerald-500' : 'bg-rose-500'} ${isHovered ? 'brightness-125 scale-x-110 shadow-lg' : 'opacity-80'}`}
+                                            style={{
+                                                height: `${Math.max(2, netHeight)}%`,
                                                 bottom: isPositive ? `${100 - zeroY}%` : 'auto',
                                                 top: isPositive ? 'auto' : `${zeroY}%`
-                                            }} 
+                                            }}
                                         />
                                     </div>
                                     <span className={`absolute bottom-[-24px] text-[10px] font-bold whitespace-nowrap transition-all duration-300 ${isHovered ? 'opacity-100 text-indigo-500 scale-110' : 'opacity-40'}`}>
@@ -1615,7 +1615,7 @@ const PLByPlanAdherenceWidget = ({ trades = [], isDarkMode, currencySymbol = '$'
         const categories = ['Followed Exactly', 'Minor Deviation', 'Major Deviation', 'No Plan'];
         const stats: Record<string, { profit: number; loss: number }> = {};
         categories.forEach(c => stats[c] = { profit: 0, loss: 0 });
-        
+
         safeTrades.forEach(trade => {
             const c = trade.planAdherence || 'No Plan';
             if (stats[c]) {
@@ -1626,7 +1626,7 @@ const PLByPlanAdherenceWidget = ({ trades = [], isDarkMode, currencySymbol = '$'
                 else stats['No Plan'].loss += Math.abs(trade.pnl || 0);
             }
         });
-        
+
         return categories.map(c => ({
             category: c === 'Followed Exactly' ? 'Followed' : c === 'Minor Deviation' ? 'Minor' : c === 'Major Deviation' ? 'Major' : 'None',
             fullLabel: c,
@@ -1639,17 +1639,17 @@ const PLByPlanAdherenceWidget = ({ trades = [], isDarkMode, currencySymbol = '$'
     const allValues = adherenceData.map(d => d.net);
     const maxVal = allValues.length ? Math.max(...allValues, 100) : 100;
     const minVal = allValues.length ? Math.min(...allValues, -100) : -100;
-    
+
     // Add padding to range
     const range = (maxVal - minVal) * 1.2 || 1;
     const zeroY = (maxVal / range) * 100;
-    
+
     const hoveredData = hoveredAdherence ? adherenceData.find(d => d.fullLabel === hoveredAdherence) : null;
 
     return (
         <div className={`p-6 rounded-[24px] border flex flex-col min-h-[400px] ${isDarkMode ? 'bg-[#0d1117] border-zinc-800' : 'bg-white border-slate-200 shadow-md'}`}>
             <h3 className="text-xl font-bold tracking-tight mb-8">P/L by Plan Adherence</h3>
-            
+
             <div className="flex-1 flex relative overflow-hidden">
                 {/* Y-Axis Labels */}
                 <div className="w-12 flex flex-col justify-between text-[10px] font-mono opacity-40 pb-8 border-r border-dashed border-white/5 pr-2 z-20">
@@ -1661,33 +1661,33 @@ const PLByPlanAdherenceWidget = ({ trades = [], isDarkMode, currencySymbol = '$'
                 {/* Chart Area */}
                 <div className="flex-1 relative ml-2">
                     {/* Zero Line */}
-                    <div 
-                        className="absolute left-0 right-0 border-t border-white/20 z-10" 
-                        style={{ top: `${zeroY}%` }} 
+                    <div
+                        className="absolute left-0 right-0 border-t border-white/20 z-10"
+                        style={{ top: `${zeroY}%` }}
                     />
-                    
+
                     {/* Bars Container */}
                     <div className="absolute inset-0 flex items-end justify-around pb-8">
                         {adherenceData.map((d, i) => {
                             const netHeight = (Math.abs(d.net) / range) * 100;
                             const isPositive = d.net >= 0;
                             const isHovered = hoveredAdherence === d.fullLabel;
-                            
+
                             return (
-                                <div 
-                                    key={i} 
+                                <div
+                                    key={i}
                                     className="relative flex flex-col items-center flex-1 h-full group cursor-pointer"
-                                    onMouseEnter={() => setHoveredAdherence(d.fullLabel)} 
+                                    onMouseEnter={() => setHoveredAdherence(d.fullLabel)}
                                     onMouseLeave={() => setHoveredAdherence(null)}
                                 >
                                     <div className="relative w-full h-full z-10">
-                                        <div 
-                                            className={`absolute left-1/2 -translate-x-1/2 w-8 transition-all duration-500 rounded-sm ${isPositive ? 'bg-emerald-500' : 'bg-rose-500'} ${isHovered ? 'brightness-125 scale-x-110 shadow-lg' : 'opacity-80'}`} 
-                                            style={{ 
-                                                height: `${Math.max(2, netHeight)}%`, 
+                                        <div
+                                            className={`absolute left-1/2 -translate-x-1/2 w-8 transition-all duration-500 rounded-sm ${isPositive ? 'bg-emerald-500' : 'bg-rose-500'} ${isHovered ? 'brightness-125 scale-x-110 shadow-lg' : 'opacity-80'}`}
+                                            style={{
+                                                height: `${Math.max(2, netHeight)}%`,
                                                 bottom: isPositive ? `${100 - zeroY}%` : 'auto',
                                                 top: isPositive ? 'auto' : `${zeroY}%`
-                                            }} 
+                                            }}
                                         />
                                     </div>
                                     <span className={`absolute bottom-[-24px] text-[10px] font-bold whitespace-nowrap transition-all duration-300 ${isHovered ? 'opacity-100 text-indigo-500 scale-110' : 'opacity-40'}`}>
@@ -1722,12 +1722,12 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
     // Widget Order State
     const [overviewOrder, setOverviewOrder] = useLocalStorage('analytics_overview_order', [
         'winRate', 'profitFactor', 'grossProfit', 'grossLoss',
-        'streakMomentum', 'equityCurve', 
-        'drawdown', 'largestWinLoss', 
-        'symbolPerformance', 'monthlyPerformance', 
+        'streakMomentum', 'equityCurve',
+        'drawdown', 'largestWinLoss',
+        'symbolPerformance', 'monthlyPerformance',
         'currencyStrength', 'tradeExit'
     ]);
-    
+
     const [growthOrder, setGrowthOrder] = useLocalStorage('analytics_growth_order', [
         'outcomeDist', 'perfByPair', 'executionTable'
     ]);
@@ -1750,7 +1750,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
             'streakMomentum', 'equityCurve', 'drawdown', 'largestWinLoss',
             'symbolPerformance', 'monthlyPerformance', 'currencyStrength', 'tradeExit'
         ];
-        
+
         const missingWidgets = defaultOverview.filter(id => !overviewOrder.includes(id));
         if (missingWidgets.length > 0) {
             setOverviewOrder([...overviewOrder, ...missingWidgets]);
@@ -1768,13 +1768,13 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
                 return arrayMove(items, oldIndex, newIndex);
             });
         } else if (activeTab === 'growth') {
-             setGrowthOrder((items) => {
+            setGrowthOrder((items) => {
                 const oldIndex = items.indexOf(String(active.id));
                 const newIndex = items.indexOf(String(over.id));
                 return arrayMove(items, oldIndex, newIndex);
             });
         } else if (activeTab === 'discipline') {
-             setDisciplineOrder((items) => {
+            setDisciplineOrder((items) => {
                 const oldIndex = items.indexOf(String(active.id));
                 const newIndex = items.indexOf(String(over.id));
                 return arrayMove(items, oldIndex, newIndex);
@@ -1826,15 +1826,15 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
 
     const renderWidget = (id: string) => {
         const currencySymbol = userProfile?.currencySymbol || '$';
-        switch(id) {
+        switch (id) {
             // Overview Widgets
             case 'winRate':
-                 return (
+                return (
                     <div className={`h-full p-6 rounded-[24px] border flex flex-col justify-between ${isDarkMode ? 'bg-[#18181b] border-[#27272a]' : 'bg-white border-slate-200 shadow-md'}`}>
                         <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">Win Rate</span>
                         <div className="text-2xl font-black">{stats.winRate}%</div>
                     </div>
-                 );
+                );
             case 'profitFactor':
                 return (
                     <div className={`h-full p-6 rounded-[24px] border flex flex-col justify-between ${isDarkMode ? 'bg-[#18181b] border-[#27272a]' : 'bg-white border-slate-200 shadow-md'}`}>
@@ -1850,26 +1850,26 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
                     </div>
                 );
             case 'grossLoss':
-                 return (
+                return (
                     <div className={`h-full p-6 rounded-[24px] border flex flex-col justify-between ${isDarkMode ? 'bg-[#18181b] border-[#27272a]' : 'bg-white border-slate-200 shadow-md'}`}>
                         <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">Gross Loss</span>
                         <div className="text-2xl font-black text-rose-500">-{currencySymbol}{stats.grossLoss.toLocaleString()}</div>
                     </div>
-                 );
+                );
             case 'streakMomentum':
                 return <MomentumStreakWidget trades={trades} isDarkMode={isDarkMode} />;
             case 'equityCurve': {
                 // If EA Session exists, use bridge equity as current balance
-                const currentBalance = eaSession?.data?.account?.equity !== undefined 
-                    ? eaSession.data.account.equity 
+                const currentBalance = eaSession?.data?.account?.equity !== undefined
+                    ? eaSession.data.account.equity
                     : (equityData?.length > 0 ? equityData[equityData.length - 1] : 0);
-                
+
                 return (
-                    <EquityCurveWidget 
-                        trades={trades} 
-                        equityData={equityData} 
-                        isDarkMode={isDarkMode} 
-                        currencySymbol={currencySymbol} 
+                    <EquityCurveWidget
+                        trades={trades}
+                        equityData={equityData}
+                        isDarkMode={isDarkMode}
+                        currencySymbol={currencySymbol}
                         currentBalanceOverride={currentBalance}
                     />
                 );
@@ -1886,7 +1886,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
                 return <CurrencyStrengthMeter isDarkMode={isDarkMode} trades={trades} />;
             case 'tradeExit':
                 return <TradeExitAnalysisWidget trades={trades} isDarkMode={isDarkMode} />;
-            
+
             // Growth Widgets
             case 'outcomeDist': {
                 const safeTrades = trades || [];
@@ -1905,44 +1905,44 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
                             <PieChart size={20} className="text-teal-500" />
                             <h3 className="font-bold text-lg uppercase tracking-wide opacity-80">Outcome Distribution</h3>
                         </div>
-                        
+
                         <div className="flex-1 flex flex-col items-center justify-center w-full">
                             <div className="relative w-56 h-56 group transition-transform duration-500 hover:scale-105">
                                 <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
                                     {/* Background Circle */}
                                     <circle cx="18" cy="18" r="15.915" fill="transparent" stroke={isDarkMode ? "#27272a" : "#f1f5f9"} strokeWidth="3.5" />
-                                    
+
                                     {/* Win Segment */}
-                                    <circle 
-                                        cx="18" cy="18" r="15.915" 
-                                        fill="transparent" 
-                                        stroke="#10b981" 
-                                        strokeWidth="3.5" 
-                                        strokeDasharray={`${winRate} 100`} 
+                                    <circle
+                                        cx="18" cy="18" r="15.915"
+                                        fill="transparent"
+                                        stroke="#10b981"
+                                        strokeWidth="3.5"
+                                        strokeDasharray={`${winRate} 100`}
                                         strokeDashoffset="0"
-                                        className="transition-all duration-1000 ease-out" 
+                                        className="transition-all duration-1000 ease-out"
                                     />
-                                    
+
                                     {/* Loss Segment */}
-                                    <circle 
-                                        cx="18" cy="18" r="15.915" 
-                                        fill="transparent" 
-                                        stroke="#f43f5e" 
-                                        strokeWidth="3.5" 
-                                        strokeDasharray={`${lossRate} 100`} 
+                                    <circle
+                                        cx="18" cy="18" r="15.915"
+                                        fill="transparent"
+                                        stroke="#f43f5e"
+                                        strokeWidth="3.5"
+                                        strokeDasharray={`${lossRate} 100`}
                                         strokeDashoffset={`-${winRate}`}
-                                        className="transition-all duration-1000 ease-out" 
+                                        className="transition-all duration-1000 ease-out"
                                     />
 
                                     {/* BE Segment */}
-                                    <circle 
-                                        cx="18" cy="18" r="15.915" 
-                                        fill="transparent" 
-                                        stroke="#71717a" 
-                                        strokeWidth="3.5" 
-                                        strokeDasharray={`${beRate} 100`} 
+                                    <circle
+                                        cx="18" cy="18" r="15.915"
+                                        fill="transparent"
+                                        stroke="#71717a"
+                                        strokeWidth="3.5"
+                                        strokeDasharray={`${beRate} 100`}
                                         strokeDashoffset={`-${winRate + lossRate}`}
-                                        className="transition-all duration-1000 ease-out" 
+                                        className="transition-all duration-1000 ease-out"
                                     />
                                 </svg>
                                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
@@ -1982,7 +1982,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
                 return <PerformanceByPairWidget trades={trades} isDarkMode={isDarkMode} currencySymbol={currencySymbol} />;
             case 'executionTable':
                 return (
-                     <div className="space-y-4">
+                    <div className="space-y-4">
                         <h3 className="text-xl font-bold tracking-tight px-4">Trade Execution Analysis</h3>
                         <ExecutionPerformanceTable trades={trades} isDarkMode={isDarkMode} currencySymbol={currencySymbol} initialBalance={userProfile?.initialBalance || 0} />
                     </div>
@@ -2028,7 +2028,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
 
     const getColSpan = (id: string) => {
         // Based on 12-column grid
-        switch(id) {
+        switch (id) {
             case 'winRate': case 'profitFactor': case 'grossProfit': case 'grossLoss': return 'col-span-12 md:col-span-6 lg:col-span-3';
             case 'streakMomentum': return 'col-span-12';
             case 'equityCurve': return 'col-span-12 lg:col-span-6';
@@ -2036,11 +2036,11 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
             case 'largestWinLoss': return 'col-span-12 lg:col-span-6';
             case 'symbolPerformance': return 'col-span-12 lg:col-span-6';
             case 'monthlyPerformance': case 'currencyStrength': case 'tradeExit': return 'col-span-12 lg:col-span-4';
-            
+
             case 'outcomeDist': return 'col-span-12 lg:col-span-4';
             case 'perfByPair': return 'col-span-12 lg:col-span-8';
             case 'executionTable': return 'col-span-12';
-            
+
             case 'tiltScore': case 'radar': case 'plMindset': case 'plAdherence': return 'col-span-12 lg:col-span-6';
             case 'riskReward': return 'col-span-12';
             default: return 'col-span-12';

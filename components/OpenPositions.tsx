@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowUpRight, ArrowDownRight, Minus, Target, Zap, Activity } from 'lucide-react';
 
 interface OpenPosition {
@@ -21,9 +21,21 @@ interface OpenPositionsProps {
     positions: OpenPosition[];
     isDarkMode: boolean;
     currencySymbol: string;
+    lastUpdated?: string;
 }
 
-const OpenPositions: React.FC<OpenPositionsProps> = ({ positions, isDarkMode, currencySymbol }) => {
+const OpenPositions: React.FC<OpenPositionsProps> = ({ positions, isDarkMode, currencySymbol, lastUpdated }) => {
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    // Trigger a quick flash animation when new data arrives
+    useEffect(() => {
+        if (lastUpdated) {
+            setIsRefreshing(true);
+            const timer = setTimeout(() => setIsRefreshing(false), 500); // 500ms refresh flash
+            return () => clearTimeout(timer);
+        }
+    }, [lastUpdated]);
+
     if (!positions || positions.length === 0) {
         return (
             <div className={`h-full flex flex-col items-center justify-center p-8 text-center rounded-2xl border-2 border-dashed ${isDarkMode ? 'border-zinc-800 bg-zinc-900/20' : 'border-zinc-200 bg-zinc-50/50'}`}>
@@ -38,10 +50,20 @@ const OpenPositions: React.FC<OpenPositionsProps> = ({ positions, isDarkMode, cu
 
     return (
         <div className="space-y-3 overflow-auto custom-scrollbar pr-2 max-h-[400px]">
+            <style>{`
+                @keyframes data-pulse {
+                    0% { opacity: 1; filter: brightness(1); }
+                    50% { opacity: 0.7; filter: brightness(1.5); border-color: #3b82f6; }
+                    100% { opacity: 1; filter: brightness(1); }
+                }
+                .data-refresh {
+                    animation: data-pulse 0.4s ease-out;
+                }
+            `}</style>
             {positions.map((pos) => (
                 <div
                     key={pos.ticket}
-                    className={`p-4 rounded-2xl border transition-all hover:scale-[1.01] ${isDarkMode
+                    className={`p-4 rounded-2xl border-2 transition-all hover:scale-[1.01] ${isRefreshing ? 'data-refresh' : ''} ${isDarkMode
                             ? 'bg-[#18181b] border-[#27272a] hover:border-zinc-700'
                             : 'bg-white border-slate-100 shadow-sm hover:shadow-md'
                         }`}

@@ -94,17 +94,24 @@ const App: React.FC = () => {
         };
         fetchSession();
 
+        // Use a more robust subscription without the string filter to avoid case-sensitivity issues
         const channel = supabase
-            .channel('app_ea_sync')
+            .channel('app_ea_sync_global')
             .on('postgres_changes', {
                 event: '*',
                 schema: 'public',
-                table: 'ea_sessions',
-                filter: `syncKey=eq.${userProfile.syncKey}`
+                table: 'ea_sessions'
             }, (payload) => {
-                setEASession(payload.new);
+                // Manually filter for the user's syncKey
+                if (payload.new && (payload.new as any).syncKey === userProfile.syncKey) {
+                    setEASession(payload.new);
+                }
             })
-            .subscribe();
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log('Realtime connected for EA Sync');
+                }
+            });
 
         return () => {
             supabase.removeChannel(channel);
@@ -130,6 +137,7 @@ const App: React.FC = () => {
           plan: profile.plan || 'Free Plan',
           syncKey: profile.sync_key,
           eaConnected: profile.ea_connected || false,
+          autoJournal: profile.auto_journal || false,
           avatarUrl: profile.avatar_url,
         };
         setUserProfile(mappedProfile);

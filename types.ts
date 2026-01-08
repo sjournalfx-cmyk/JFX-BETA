@@ -13,6 +13,7 @@ export interface UserProfile {
   plan: string;
   syncKey?: string;
   eaConnected?: boolean;
+  autoJournal?: boolean;
   avatarUrl?: string;
 }
 
