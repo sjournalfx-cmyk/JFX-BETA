@@ -286,15 +286,33 @@ const CalendarView = ({ isDarkMode, trades, userProfile }: { isDarkMode: boolean
 
 const Journal: React.FC<JournalProps> = ({ isDarkMode, trades, onUpdateTrade, onDeleteTrades, onEditTrade, userProfile }) => {
     const [searchTerm, setSearchTerm] = useState('');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
     const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
     const [expandedTradeId, setExpandedTradeId] = useState<string | null>(null);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     
-    const filteredTrades = useMemo(() => trades.filter(t => 
-        t.pair.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        t.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        t.assetType.toLowerCase().includes(searchTerm.toLowerCase())
-    ), [trades, searchTerm]);
+    const filteredTrades = useMemo(() => {
+        let result = trades.filter(t => 
+            t.pair.toLowerCase().includes(searchTerm.toLowerCase()) || 
+            t.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            t.assetType.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        if (startDate) {
+            result = result.filter(t => t.date >= startDate);
+        }
+
+        if (endDate) {
+            result = result.filter(t => t.date <= endDate);
+        }
+
+        return result.sort((a, b) => {
+            const dateA = new Date(`${a.date}T${a.time || '00:00:00'}`);
+            const dateB = new Date(`${b.date}T${b.time || '00:00:00'}`);
+            return dateB.getTime() - dateA.getTime();
+        });
+    }, [trades, searchTerm, startDate, endDate]);
 
     const toggleExpand = (id: string) => { setExpandedTradeId(expandedTradeId === id ? null : id); };
     const handleSelectAll = () => { if (selectedIds.length === filteredTrades.length) setSelectedIds([]); else setSelectedIds(filteredTrades.map(t => t.id)); };
@@ -476,6 +494,21 @@ const Journal: React.FC<JournalProps> = ({ isDarkMode, trades, onUpdateTrade, on
                                 value={searchTerm} 
                                 onChange={(e) => setSearchTerm(e.target.value)} 
                                 className={`pl-10 pr-4 py-2 rounded-lg border text-sm outline-none w-64 ${isDarkMode ? 'bg-[#18181b] border-[#27272a] focus:border-blue-500' : 'bg-white border-slate-200'}`} 
+                            />
+                        </div>
+                        <div className="flex items-center gap-2">
+                             <input 
+                                type="date" 
+                                value={startDate} 
+                                onChange={(e) => setStartDate(e.target.value)} 
+                                className={`px-3 py-2 rounded-lg border text-sm outline-none ${isDarkMode ? 'bg-[#18181b] border-[#27272a] text-zinc-200 focus:border-blue-500' : 'bg-white border-slate-200 text-slate-700'}`}
+                            />
+                            <span className={`text-sm ${isDarkMode ? 'text-zinc-500' : 'text-slate-400'}`}>to</span>
+                            <input 
+                                type="date" 
+                                value={endDate} 
+                                onChange={(e) => setEndDate(e.target.value)} 
+                                className={`px-3 py-2 rounded-lg border text-sm outline-none ${isDarkMode ? 'bg-[#18181b] border-[#27272a] text-zinc-200 focus:border-blue-500' : 'bg-white border-slate-200 text-slate-700'}`}
                             />
                         </div>
                     </div>

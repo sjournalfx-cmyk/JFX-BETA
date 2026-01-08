@@ -1,74 +1,63 @@
 
-import React, { useState, useMemo } from 'react';
-import { ArrowUpRight, ArrowDownRight, Activity, TrendingUp, DollarSign, BarChart2, Zap, Coins, GripVertical, UserCircle, Wallet } from 'lucide-react';
-import { 
-  DndContext, 
-  closestCenter, 
-  KeyboardSensor, 
-  PointerSensor, 
-  useSensor, 
-  useSensors, 
+import React, { useMemo, useState, useEffect } from 'react';
+import { ArrowUpRight, ArrowDownRight, Activity, TrendingUp, DollarSign, BarChart2, Zap, Coins, GripVertical, UserCircle, Wallet, Layout, Cpu, ArrowRight } from 'lucide-react';
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
 } from '@dnd-kit/core';
-import { 
-  arrayMove, 
-  SortableContext, 
-  sortableKeyboardCoordinates, 
-  rectSortingStrategy, 
-  useSortable
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    rectSortingStrategy,
 } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 
 import { Trade, DailyBias, UserProfile } from '../types';
 import SessionClock from './SessionClock';
+import { SortableWidget } from './ui/SortableWidget';
+import { useLocalStorage } from '../hooks/useLocalStorage';
+import { dataService } from '../services/dataService';
+import { supabase } from '../lib/supabase';
+import OpenPositions from './OpenPositions';
+
 
 interface DashboardProps {
-  isDarkMode: boolean;
-  trades: Trade[];
-  dailyBias: DailyBias[];
-  onUpdateBias: (bias: DailyBias) => void;
-  userProfile: UserProfile;
+    isDarkMode: boolean;
+    trades: Trade[];
+    dailyBias: DailyBias[];
+    onUpdateBias: (bias: DailyBias) => void;
+    userProfile: UserProfile;
+    onViewChange: (view: string) => void;
+    eaSession?: any;
 }
-
-// --- DRAGGABLE WRAPPER ---
-interface SortableWidgetProps {
-  id: string;
-  children: React.ReactNode;
-  className?: string;
-}
-
-const SortableWidget: React.FC<SortableWidgetProps> = ({ id, children, className = "" }) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging
-  } = useSortable({ id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 50 : 'auto',
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  return (
-    <div ref={setNodeRef} style={style} className={`relative group h-full ${className}`}>
-      {/* Drag Handle - Only visible on hover */}
-      <div 
-        {...attributes} 
-        {...listeners} 
-        className="absolute top-4 right-4 p-1.5 rounded-lg cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity z-20 bg-black/10 dark:bg-white/10 text-zinc-500 hover:text-white"
-      >
-          <GripVertical size={14} />
-      </div>
-      {children}
-    </div>
-  );
-};
 
 // --- WIDGET COMPONENTS ---
+
+const EASetupPrompt = ({ isDarkMode, onSetupClick }: { isDarkMode: boolean, onSetupClick: () => void }) => (
+    <div className={`mb-8 p-8 rounded-[32px] border-2 border-dashed flex flex-col md:flex-row items-center justify-between gap-6 transition-all ${isDarkMode ? 'bg-indigo-500/5 border-indigo-500/20' : 'bg-indigo-50 border-indigo-200'}`}>
+        <div className="flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
+            <div className="w-16 h-16 rounded-2xl bg-indigo-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                <Cpu size={32} />
+            </div>
+            <div>
+                <h3 className="text-xl font-black mb-1">Finish your EA Setup</h3>
+                <p className={`text-sm max-w-md ${isDarkMode ? 'text-zinc-400' : 'text-slate-500'}`}>
+                    You've selected EA Sync, but we haven't received any data yet. Complete the setup to see your real-time trades and equity.
+                </p>
+            </div>
+        </div>
+        <button
+            onClick={onSetupClick}
+            className="px-8 py-4 bg-indigo-500 hover:bg-indigo-600 text-white rounded-2xl font-black text-sm transition-all hover:scale-105 active:scale-95 shadow-xl shadow-indigo-500/20 flex items-center gap-2 shrink-0"
+        >
+            Setup Guide <ArrowRight size={18} />
+        </button>
+    </div>
+);
 
 const StatCard = ({ label, value, subtext, trend, isDarkMode, icon: Icon, colorClass }: any) => (
     <div className={`h-full p-6 rounded-2xl border transition-all hover:shadow-lg ${isDarkMode ? 'bg-[#18181b] border-[#27272a]' : 'bg-white border-slate-100 shadow-md'}`}>
@@ -92,13 +81,13 @@ const StatCard = ({ label, value, subtext, trend, isDarkMode, icon: Icon, colorC
 const EquityCurveWidget = ({ trades, equityData, isDarkMode, currencySymbol }: { trades: Trade[], equityData: number[], isDarkMode: boolean, currencySymbol: string }) => {
     const generatePath = (data: number[], width: number, height: number) => {
         if (data.length < 2) return "";
-        const min = Math.min(...data, 0); 
-        const max = Math.max(...data, 100); 
+        const min = Math.min(...data, 0);
+        const max = Math.max(...data, 100);
         const range = max - min || 1;
-        const points = data.map((val, i) => { 
-            const x = (i / (data.length - 1)) * width; 
-            const y = height - ((val - min) / range) * height; 
-            return `${x},${y}`; 
+        const points = data.map((val, i) => {
+            const x = (i / (data.length - 1)) * width;
+            const y = height - ((val - min) / range) * height;
+            return `${x},${y}`;
         });
         return `M ${points.join(' L ')}`;
     };
@@ -107,8 +96,8 @@ const EquityCurveWidget = ({ trades, equityData, isDarkMode, currencySymbol }: {
         <div className={`p-6 rounded-2xl border flex flex-col min-h-[250px] relative overflow-hidden ${isDarkMode ? 'bg-[#18181b] border-[#27272a]' : 'bg-white border-slate-100 shadow-md'}`}>
             <div className="flex justify-between items-start mb-4">
                 <h3 className="font-bold">Equity Curve</h3>
-                <span className={`text-[10px] font-bold uppercase tracking-widest ${equityData[equityData.length-1] >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {equityData[equityData.length-1] >= 0 ? '+' : ''}{currencySymbol}{Math.abs(equityData[equityData.length-1] || 0).toLocaleString()}
+                <span className={`text-[10px] font-bold uppercase tracking-widest ${equityData[equityData.length - 1] >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {equityData[equityData.length - 1] >= 0 ? '+' : ''}{currencySymbol}{Math.abs(equityData[equityData.length - 1] || 0).toLocaleString()}
                 </span>
             </div>
             <div className="flex-1 relative">
@@ -155,7 +144,7 @@ const DailyBiasWidget = ({ isDarkMode, dailyBias, onUpdateBias }: { isDarkMode: 
     const days = Array.from({ length: 7 }, (_, i) => {
         const d = new Date();
         d.setDate(d.getDate() - (6 - i));
-        return d.toISOString().split('T')[0];
+        return d.toLocaleDateString('en-CA');
     });
 
     const getBiasForDate = (date: string) => dailyBias.find(b => b.date === date)?.bias || 'Neutral';
@@ -178,16 +167,15 @@ const DailyBiasWidget = ({ isDarkMode, dailyBias, onUpdateBias }: { isDarkMode: 
                 {days.map(date => {
                     const bias = getBiasForDate(date);
                     const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'short' });
-                    const isToday = date === new Date().toISOString().split('T')[0];
+                    const isToday = date === new Date().toLocaleDateString('en-CA');
                     return (
-                        <button 
+                        <button
                             key={date}
                             onClick={() => handleCycleBias(date)}
-                            className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all h-full ${
-                                bias === 'Bullish' ? 'bg-teal-500/10 text-teal-500 border border-teal-500/20' :
+                            className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all h-full ${bias === 'Bullish' ? 'bg-teal-500/10 text-teal-500 border border-teal-500/20' :
                                 bias === 'Bearish' ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' :
-                                isDarkMode ? 'bg-zinc-800 text-zinc-500 border border-zinc-700' : 'bg-slate-100 text-slate-400 border border-slate-200'
-                            } ${isToday ? 'ring-2 ring-blue-500' : ''}`}
+                                    isDarkMode ? 'bg-zinc-800 text-zinc-500 border border-zinc-700' : 'bg-slate-100 text-slate-400 border border-slate-200'
+                                } ${isToday ? 'ring-2 ring-blue-500' : ''}`}
                         >
                             <span className="text-[10px] font-bold mb-1">{dayName}</span>
                             {bias === 'Bullish' && <ArrowUpRight size={16} />}
@@ -201,12 +189,13 @@ const DailyBiasWidget = ({ isDarkMode, dailyBias, onUpdateBias }: { isDarkMode: 
     );
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ isDarkMode, trades, dailyBias, onUpdateBias, userProfile }) => {
+const Dashboard: React.FC<DashboardProps> = ({ isDarkMode, trades, dailyBias, onUpdateBias, userProfile, onViewChange, eaSession }) => {
     // Widgets State for Reordering
-    const [widgetOrder, setWidgetOrder] = useState([
+    const [widgetOrder, setWidgetOrder] = useLocalStorage('dashboard_widget_order', [
         'dailyBias',
         'recentTrades',
         'equityCurve',
+        'openPositions'
     ]);
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -226,11 +215,15 @@ const Dashboard: React.FC<DashboardProps> = ({ isDarkMode, trades, dailyBias, on
 
     // Calculate Stats
     const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0);
-    const currentBalance = userProfile.initialBalance + totalPnL;
+    // If EA Session exists, use bridge equity as the source of truth for current balance
+    const currentBalance = eaSession?.data?.account?.equity !== undefined 
+        ? eaSession.data.account.equity 
+        : (userProfile.initialBalance + totalPnL);
+
     const wins = trades.filter(t => t.result === 'Win');
     const losses = trades.filter(t => t.result === 'Loss');
     const winRate = trades.length > 0 ? ((wins.length / trades.length) * 100).toFixed(1) : 0;
-    
+
     const grossProfit = wins.reduce((acc, t) => acc + t.pnl, 0);
     const grossLoss = Math.abs(losses.reduce((acc, t) => acc + t.pnl, 0));
     const profitFactor = grossLoss > 0 ? (grossProfit / grossLoss).toFixed(2) : (grossProfit > 0 ? "9.9" : "0.00");
@@ -248,20 +241,31 @@ const Dashboard: React.FC<DashboardProps> = ({ isDarkMode, trades, dailyBias, on
     }, [trades]);
 
     const renderWidget = (id: string) => {
-        switch(id) {
+        switch (id) {
             case 'dailyBias':
                 return <DailyBiasWidget isDarkMode={isDarkMode} dailyBias={dailyBias} onUpdateBias={onUpdateBias} />;
             case 'recentTrades':
                 return <RecentTrades isDarkMode={isDarkMode} trades={trades} symbol={userProfile.currencySymbol} />;
             case 'equityCurve':
                 return <EquityCurveWidget trades={trades} equityData={equityData} isDarkMode={isDarkMode} currencySymbol={userProfile.currencySymbol} />;
+            case 'openPositions':
+                return (
+                    <div className={`h-full p-6 rounded-2xl border flex flex-col ${isDarkMode ? 'bg-[#18181b] border-[#27272a]' : 'bg-white border-slate-100 shadow-md'}`}>
+                        <h3 className="font-bold mb-4 flex items-center gap-2"><Activity size={18} className="text-emerald-500" /> Open Positions</h3>
+                        <OpenPositions
+                            positions={eaSession?.data?.openPositions || []}
+                            isDarkMode={isDarkMode}
+                            currencySymbol={userProfile.currencySymbol}
+                        />
+                    </div>
+                );
             default: return null;
         }
     };
 
-    // Helper to determine col-span based on ID (to maintain layout integrity during drag)
+    // Helper to determine col-span based on ID
     const getColSpan = (id: string) => {
-        if (id === 'dailyBias') return 'col-span-1 lg:col-span-2 min-h-[250px]';
+        if (id === 'dailyBias' || id === 'openPositions') return 'col-span-1 lg:col-span-2 min-h-[250px]';
         return 'col-span-1 min-h-[250px]';
     };
 
@@ -269,41 +273,46 @@ const Dashboard: React.FC<DashboardProps> = ({ isDarkMode, trades, dailyBias, on
         <div className={`w-full h-full overflow-y-auto p-8 font-sans ${isDarkMode ? 'bg-[#09090b] text-zinc-200' : 'bg-slate-50 text-slate-900'}`}>
             <header className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
-                  <div className="flex items-center gap-3 mb-1">
-                    <h1 className="text-3xl font-bold tracking-tight">{userProfile.accountName || 'Trading Dashboard'}</h1>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border ${isDarkMode ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-indigo-50 text-indigo-600 border-indigo-200'}`}>
-                      {userProfile.experienceLevel}
-                    </span>
-                    {userProfile.syncMethod === 'EA_CONNECT' && (
-                        <span className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> EA Connected
+                    <div className="flex items-center gap-3 mb-1">
+                        <h1 className="text-3xl font-bold tracking-tight">{userProfile.accountName || 'Trading Dashboard'}</h1>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border ${isDarkMode ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-indigo-50 text-indigo-600 border-indigo-200'}`}>
+                            {userProfile.experienceLevel}
                         </span>
-                    )}
-                  </div>
-                  <p className={`text-sm ${isDarkMode ? 'text-zinc-500' : 'text-slate-500'}`}>Welcome back, {userProfile.name}. Analyzing markets from {userProfile.country}.</p>
+
+                    </div>
+                    <p className={`text-sm ${isDarkMode ? 'text-zinc-500' : 'text-slate-500'}`}>Welcome back, {userProfile.name}. Analyzing markets from {userProfile.country}.</p>
                 </div>
-                
+
                 <div className={`flex items-center gap-6 p-4 rounded-3xl border ${isDarkMode ? 'bg-[#18181b] border-[#27272a]' : 'bg-white border-slate-100 shadow-md'}`}>
-                   <div className="flex items-center gap-3 border-r pr-6 border-zinc-800/50">
-                      <div className="w-10 h-10 rounded-2xl bg-[#FF4F01]/10 flex items-center justify-center text-[#FF4F01] shadow-lg">
-                         <Wallet size={20} />
-                      </div>
-                      <div>
-                         <div className="text-[10px] font-bold opacity-40 uppercase tracking-widest leading-none mb-1">Account Balance</div>
-                         <div className="text-xl font-black font-mono tracking-tighter leading-none">{userProfile.currencySymbol}{currentBalance.toLocaleString()}</div>
-                      </div>
-                   </div>
-                   <div className="flex items-center gap-4">
-                      <div className="hidden sm:block text-right">
-                         <div className="text-xs font-black uppercase tracking-wider">{userProfile.name}</div>
-                         <div className="text-[10px] opacity-40 font-bold uppercase">{userProfile.tradingStyle}</div>
-                      </div>
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-xl">
-                         <UserCircle size={28} />
-                      </div>
-                   </div>
+                    <div className="flex items-center gap-3 border-r pr-6 border-zinc-800/50">
+                        <div className="w-10 h-10 rounded-2xl bg-[#FF4F01]/10 flex items-center justify-center text-[#FF4F01] shadow-lg">
+                            <Wallet size={20} />
+                        </div>
+                        <div>
+                            <div className="text-[10px] font-bold opacity-40 uppercase tracking-widest leading-none mb-1">Account Balance</div>
+                            <div className="text-xl font-black font-mono tracking-tighter leading-none">{userProfile.currencySymbol}{currentBalance.toLocaleString()}</div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <div className="hidden sm:block text-right">
+                            <div className="text-xs font-black uppercase tracking-wider">{userProfile.name}</div>
+                            <div className="text-[10px] opacity-40 font-bold uppercase">{userProfile.tradingStyle}</div>
+                        </div>
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-xl overflow-hidden">
+                            {userProfile.avatarUrl ? (
+                                <img src={userProfile.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                            ) : (
+                                <UserCircle size={28} />
+                            )}
+                        </div>
+                    </div>
                 </div>
             </header>
+
+            {/* EA Setup Prompt (For new EA users) */}
+            {trades.length === 0 && userProfile.syncMethod === 'EA_CONNECT' && !eaSession && (
+                <EASetupPrompt isDarkMode={isDarkMode} onSetupClick={() => onViewChange('ea-setup')} />
+            )}
 
             {/* Session Clock Widget (Fixed at Top) */}
             <SessionClock isDarkMode={isDarkMode} />

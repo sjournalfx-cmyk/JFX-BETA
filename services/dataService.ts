@@ -5,6 +5,7 @@ import { Trade, Note, DailyBias, UserProfile, Goal } from '../types';
 // Helper to map DB Trade to App Trade
 const mapTradeFromDB = (dbTrade: any): Trade => ({
   ...dbTrade,
+  ticketId: dbTrade.ticket_id,
   assetType: dbTrade.asset_type,
   entryPrice: dbTrade.entry_price,
   exitPrice: dbTrade.exit_price,
@@ -20,6 +21,7 @@ const mapTradeFromDB = (dbTrade: any): Trade => ({
 // Helper to map App Trade to DB Trade
 const mapTradeToDB = (trade: Trade, userId: string) => ({
   user_id: userId,
+  ticket_id: trade.ticketId,
   pair: trade.pair,
   asset_type: trade.assetType,
   date: trade.date,
@@ -53,10 +55,10 @@ const uploadImage = async (userId: string, imageSource: string | undefined, type
     // Convert base64 to Blob
     const response = await fetch(imageSource);
     const blob = await response.blob();
-    
+
     const fileExt = 'png'; // Default to png for base64 transfers
     const fileName = `${userId}/${Date.now()}-${type}.${fileExt}`;
-    
+
     const { data, error } = await supabase.storage
       .from('trade-images')
       .upload(fileName, blob, {
@@ -91,9 +93,9 @@ const deleteImageFile = async (imageUrl: string | undefined) => {
     // URL format: .../storage/v1/object/public/trade-images/userId/filename.png
     const pathParts = imageUrl.split('trade-images/');
     if (pathParts.length < 2) return;
-    
+
     const filePath = pathParts[1];
-    
+
     const { error } = await supabase.storage
       .from('trade-images')
       .remove([filePath]);
@@ -106,19 +108,19 @@ const deleteImageFile = async (imageUrl: string | undefined) => {
 
 // Helper to map DB Goal to App Goal
 const mapGoalFromDB = (dbGoal: any): Goal => ({
-    id: dbGoal.id,
-    title: dbGoal.title,
-    description: dbGoal.description,
-    type: dbGoal.type,
-    metric: dbGoal.metric,
-    targetValue: dbGoal.target_value,
-    startValue: dbGoal.start_value,
-    startDate: dbGoal.start_date,
-    endDate: dbGoal.end_date,
-    status: dbGoal.status,
-    createdAt: dbGoal.created_at,
-    milestones: dbGoal.milestones || [],
-    manualProgress: dbGoal.current_value
+  id: dbGoal.id,
+  title: dbGoal.title,
+  description: dbGoal.description,
+  type: dbGoal.type,
+  metric: dbGoal.metric,
+  targetValue: dbGoal.target_value,
+  startValue: dbGoal.start_value,
+  startDate: dbGoal.start_date,
+  endDate: dbGoal.end_date,
+  status: dbGoal.status,
+  createdAt: dbGoal.created_at,
+  milestones: dbGoal.milestones || [],
+  manualProgress: dbGoal.current_value
 });
 
 export const dataService = {
@@ -128,7 +130,7 @@ export const dataService = {
       .from('trades')
       .select('*')
       .order('date', { ascending: false });
-    
+
     if (error) throw error;
     return (data || []).map(mapTradeFromDB);
   },
@@ -137,19 +139,19 @@ export const dataService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
-    // Upload images if they are base64
+    // Upload images if they are base64 (keep awaiting images as they are small and critical)
     const beforeUrl = await uploadImage(user.id, trade.beforeScreenshot, 'before');
     const afterUrl = await uploadImage(user.id, trade.afterScreenshot, 'after');
 
-    const tradeWithUrls = {
+    const tradeToSave = {
       ...trade,
       beforeScreenshot: beforeUrl,
-      afterScreenshot: afterUrl
+      afterScreenshot: afterUrl,
     };
 
     const { data, error } = await supabase
       .from('trades')
-      .insert(mapTradeToDB(tradeWithUrls, user.id))
+      .insert(mapTradeToDB(tradeToSave, user.id))
       .select()
       .single();
 
@@ -161,7 +163,7 @@ export const dataService = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
-    // Get current record to check for deleted images
+    // Get current record to check for deleted files
     const { data: currentTrade } = await supabase
       .from('trades')
       .select('before_screenshot, after_screenshot')
@@ -169,28 +171,28 @@ export const dataService = {
       .single();
 
     if (currentTrade) {
-        // If it was a URL and now it's gone or changed to a base64, delete the old file
-        if (currentTrade.before_screenshot && (!trade.beforeScreenshot || trade.beforeScreenshot.startsWith('data:'))) {
-            await deleteImageFile(currentTrade.before_screenshot);
-        }
-        if (currentTrade.after_screenshot && (!trade.afterScreenshot || trade.afterScreenshot.startsWith('data:'))) {
-            await deleteImageFile(currentTrade.after_screenshot);
-        }
+      // Handle images
+      if (currentTrade.before_screenshot && (!trade.beforeScreenshot || trade.beforeScreenshot.startsWith('data:'))) {
+        await deleteImageFile(currentTrade.before_screenshot);
+      }
+      if (currentTrade.after_screenshot && (!trade.afterScreenshot || trade.afterScreenshot.startsWith('data:'))) {
+        await deleteImageFile(currentTrade.after_screenshot);
+      }
     }
 
     // Upload images if they are base64
     const beforeUrl = await uploadImage(user.id, trade.beforeScreenshot, 'before');
     const afterUrl = await uploadImage(user.id, trade.afterScreenshot, 'after');
 
-    const tradeWithUrls = {
+    const tradeToUpdate = {
       ...trade,
       beforeScreenshot: beforeUrl,
-      afterScreenshot: afterUrl
+      afterScreenshot: afterUrl,
     };
 
     const { error } = await supabase
       .from('trades')
-      .update(mapTradeToDB(tradeWithUrls, user.id))
+      .update(mapTradeToDB(tradeToUpdate, user.id))
       .eq('id', trade.id);
 
     if (error) throw error;
@@ -211,11 +213,11 @@ export const dataService = {
       .from('notes')
       .select('*')
       .order('created_at', { ascending: false });
-      
+
     if (error) throw error;
     return data.map((note: any) => ({
-        ...note,
-        isPinned: note.is_pinned
+      ...note,
+      isPinned: note.is_pinned
     }));
   },
 
@@ -226,13 +228,13 @@ export const dataService = {
     const { data, error } = await supabase
       .from('notes')
       .insert({
-          user_id: user.id,
-          title: note.title,
-          content: note.content,
-          date: note.date,
-          tags: note.tags,
-          color: note.color,
-          is_pinned: note.isPinned
+        user_id: user.id,
+        title: note.title,
+        content: note.content,
+        date: note.date,
+        tags: note.tags,
+        color: note.color,
+        is_pinned: note.isPinned
       })
       .select()
       .single();
@@ -245,11 +247,11 @@ export const dataService = {
     const { error } = await supabase
       .from('notes')
       .update({
-          title: note.title,
-          content: note.content,
-          tags: note.tags,
-          color: note.color,
-          is_pinned: note.isPinned
+        title: note.title,
+        content: note.content,
+        tags: note.tags,
+        color: note.color,
+        is_pinned: note.isPinned
       })
       .eq('id', note.id);
 
@@ -270,47 +272,47 @@ export const dataService = {
     const { data, error } = await supabase
       .from('daily_bias')
       .select('*');
-      
+
     if (error) throw error;
     return data.map((bias: any) => ({
-        ...bias,
-        actualOutcome: bias.actual_outcome
+      ...bias,
+      actualOutcome: bias.actual_outcome
     }));
   },
 
   async updateBias(bias: DailyBias) {
-     const { data: { user } } = await supabase.auth.getUser();
-     if (!user) throw new Error('User not authenticated');
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
 
-     // Check if exists
-     const { data: existing } = await supabase
+    // Check if exists
+    const { data: existing } = await supabase
+      .from('daily_bias')
+      .select('id')
+      .eq('date', bias.date)
+      .single();
+
+    if (existing) {
+      const { error } = await supabase
         .from('daily_bias')
-        .select('id')
-        .eq('date', bias.date)
-        .single();
-
-     if (existing) {
-         const { error } = await supabase
-            .from('daily_bias')
-            .update({
-                bias: bias.bias,
-                notes: bias.notes,
-                actual_outcome: bias.actualOutcome
-            })
-            .eq('id', existing.id);
-         if (error) throw error;
-     } else {
-         const { error } = await supabase
-            .from('daily_bias')
-            .insert({
-                user_id: user.id,
-                date: bias.date,
-                bias: bias.bias,
-                notes: bias.notes,
-                actual_outcome: bias.actualOutcome
-            });
-         if (error) throw error;
-     }
+        .update({
+          bias: bias.bias,
+          notes: bias.notes,
+          actual_outcome: bias.actualOutcome
+        })
+        .eq('id', existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase
+        .from('daily_bias')
+        .insert({
+          user_id: user.id,
+          date: bias.date,
+          bias: bias.bias,
+          notes: bias.notes,
+          actual_outcome: bias.actualOutcome
+        });
+      if (error) throw error;
+    }
   },
 
   // --- Goals ---
@@ -319,7 +321,7 @@ export const dataService = {
       .from('goals')
       .select('*')
       .order('created_at', { ascending: false });
-    
+
     if (error) throw error;
     return (data || []).map(mapGoalFromDB);
   },
@@ -383,28 +385,50 @@ export const dataService = {
 
   // --- Profile ---
   async updateProfile(profile: Partial<UserProfile>) {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
 
-      const dbProfile = {
-          name: profile.name,
-          country: profile.country,
-          account_name: profile.accountName,
-          initial_balance: profile.initialBalance,
-          currency: profile.currency,
-          currency_symbol: profile.currencySymbol,
-          sync_method: profile.syncMethod,
-          experience_level: profile.experienceLevel,
-          trading_style: profile.tradingStyle,
-          onboarded: profile.onboarded,
-          plan: profile.plan
-      };
+    const dbProfile: any = {};
+    if (profile.name !== undefined) dbProfile.name = profile.name;
+    if (profile.country !== undefined) dbProfile.country = profile.country;
+    if (profile.accountName !== undefined) dbProfile.account_name = profile.accountName;
+    if (profile.initialBalance !== undefined) dbProfile.initial_balance = profile.initialBalance;
+    if (profile.currency !== undefined) dbProfile.currency = profile.currency;
+    if (profile.currencySymbol !== undefined) dbProfile.currency_symbol = profile.currencySymbol;
+    if (profile.syncMethod !== undefined) dbProfile.sync_method = profile.syncMethod;
+    if (profile.experienceLevel !== undefined) dbProfile.experience_level = profile.experienceLevel;
+    if (profile.tradingStyle !== undefined) dbProfile.trading_style = profile.tradingStyle;
+    if (profile.onboarded !== undefined) dbProfile.onboarded = profile.onboarded;
+    if (profile.plan !== undefined) dbProfile.plan = profile.plan;
+    if (profile.syncKey !== undefined) dbProfile.sync_key = profile.syncKey;
+    if (profile.eaConnected !== undefined) dbProfile.ea_connected = profile.eaConnected;
+    if (profile.avatarUrl !== undefined) dbProfile.avatar_url = profile.avatarUrl;
 
-      const { error } = await supabase
-        .from('profiles')
-        .update(dbProfile)
-        .eq('id', user.id);
-      
-      if (error) throw error;
+    // Always update updated_at if possible, but we'll let the DB handle it if the column exists
+    // To be safe against the reported error, we only include it if we are sure it's needed 
+    // or we can just omit it and let the DB trigger handle it once the user runs the SQL fix.
+
+    const { error } = await supabase
+      .from('profiles')
+      .upsert({
+        id: user.id,
+        ...dbProfile
+      });
+
+    if (error) throw error;
+
+  },
+
+  // --- EA Session ---
+  async getEASession(syncKey: string) {
+    const { data, error } = await supabase
+      .from('ea_sessions')
+      .select('*')
+      .eq('syncKey', syncKey)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
   }
 };
+

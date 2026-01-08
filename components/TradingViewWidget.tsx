@@ -8,11 +8,11 @@ interface TradingViewWidgetProps {
   autosize?: boolean;
 }
 
-function TradingViewWidget({ 
-  symbol = "IG:NASDAQ", 
-  theme = "dark", 
-  interval = "240", 
-  autosize = true 
+function TradingViewWidget({
+  symbol = "IG:NASDAQ",
+  theme = "dark",
+  interval = "240",
+  autosize = true
 }: TradingViewWidgetProps) {
   const container = useRef<HTMLDivElement>(null);
 
@@ -21,14 +21,14 @@ function TradingViewWidget({
 
     // Clear previous widget if it exists to allow updates
     if (container.current.childElementCount > 0) {
-        container.current.innerHTML = '';
+      container.current.innerHTML = '';
     }
 
     const script = document.createElement("script");
     script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
     script.type = "text/javascript";
     script.async = true;
-    
+
     const widgetConfig = {
       "allow_symbol_change": true,
       "calendar": false,
@@ -45,7 +45,7 @@ function TradingViewWidget({
       "style": "1",
       "symbol": symbol,
       "theme": theme,
-      "timezone": "Etc/UTC",
+      "timezone": "Africa/Johannesburg",
       "backgroundColor": theme === 'dark' ? "#09090b" : "#ffffff",
       "gridColor": theme === 'dark' ? "rgba(242, 242, 242, 0.06)" : "rgba(0, 0, 0, 0.06)",
       "withdateranges": true,
@@ -61,7 +61,7 @@ function TradingViewWidget({
     widgetContainer.className = "tradingview-widget-container__widget";
     widgetContainer.style.height = "calc(100% - 32px)";
     widgetContainer.style.width = "100%";
-    
+
     const copyright = document.createElement('div');
     copyright.className = "tradingview-widget-copyright";
     copyright.innerHTML = `<a href="https://www.tradingview.com/" rel="noopener nofollow" target="_blank"><span class="blue-text">Chart by TradingView</span></a>`;

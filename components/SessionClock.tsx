@@ -71,16 +71,18 @@ const SessionClock: React.FC<SessionClockProps> = ({ isDarkMode }) => {
     <div className={`w-full p-6 rounded-2xl border mb-6 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6 ${isDarkMode ? 'bg-[#18181b] border-[#27272a]' : 'bg-white border-slate-100 shadow-md'}`}>
       
       {/* Main UTC Clock */}
-      <div className="flex items-center gap-4 min-w-[200px]">
-         <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isDarkMode ? 'bg-zinc-800 text-zinc-400' : 'bg-slate-100 text-slate-500'}`}>
-            <Globe size={24} className="animate-[spin_60s_linear_infinite]" />
-         </div>
-         <div>
-             <h3 className="text-2xl font-mono font-bold tracking-tight">
-                {utcTime.toLocaleTimeString('en-GB', { timeZone: 'UTC', hour12: false })}
-             </h3>
-             <p className="text-xs font-bold uppercase tracking-widest opacity-50">UTC Time</p>
-         </div>
+      <div className="flex flex-col gap-4 min-w-[200px]">
+        <div className="flex items-center gap-4">
+           <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isDarkMode ? 'bg-zinc-800 text-zinc-400' : 'bg-slate-100 text-slate-500'}`}>
+              <Globe size={24} className="animate-[spin_60s_linear_infinite]" />
+           </div>
+           <div>
+               <h3 className="text-2xl font-mono font-bold tracking-tight">
+                  {utcTime.toLocaleTimeString('en-GB', { timeZone: 'Africa/Johannesburg', hour12: false })}
+               </h3>
+               <p className="text-xs font-bold uppercase tracking-widest opacity-50">SAST Time</p>
+           </div>
+        </div>
       </div>
 
       <div className={`h-px xl:h-12 w-full xl:w-px ${isDarkMode ? 'bg-zinc-800' : 'bg-slate-200'}`} />

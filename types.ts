@@ -10,13 +10,17 @@ export interface UserProfile {
   experienceLevel: 'Beginner' | 'Intermediate' | 'Advanced' | 'Pro';
   tradingStyle: 'Scalper' | 'Day Trader' | 'Swing Trader' | 'Investor';
   onboarded: boolean;
-  plan?: string;
+  plan: string;
+  syncKey?: string;
+  eaConnected?: boolean;
+  avatarUrl?: string;
 }
 
 export type AssetType = 'Forex' | 'Indices' | 'Commodities' | 'Crypto' | 'Stocks';
 
 export interface Trade {
   id: string;
+  ticketId?: string;
   pair: string;
   assetType: AssetType;
   date: string;
@@ -33,7 +37,7 @@ export interface Trade {
   rr: number;
   rating: number;
   tags: string[];
-  notes?: string; 
+  notes?: string;
   emotions?: string[];
   planAdherence?: 'Followed Exactly' | 'Minor Deviation' | 'Major Deviation' | 'No Plan';
   tradingMistake?: string;
@@ -91,22 +95,11 @@ export interface Goal {
   createdAt: string;
 }
 
-// Fix for missing types reported in multiple components
-
 export enum ConnectionState {
   DISCONNECTED = 'DISCONNECTED',
   CONNECTING = 'CONNECTING',
   CONNECTED = 'CONNECTED',
   ERROR = 'ERROR'
-}
-
-export interface AudioPeer {
-  id: string;
-  name: string;
-  type: 'human' | 'ai';
-  avatar: string;
-  isMuted: boolean;
-  isSpeaking?: boolean;
 }
 
 export interface Rule {
