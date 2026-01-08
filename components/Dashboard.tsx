@@ -240,6 +240,11 @@ const Dashboard: React.FC<DashboardProps> = ({ isDarkMode, trades, dailyBias, on
         return data;
     }, [trades]);
 
+    // Calculate total floating P/L for Open Positions
+    const totalFloatingPnL = useMemo(() => {
+        return (eaSession?.data?.openPositions || []).reduce((sum: number, pos: any) => sum + pos.profit, 0);
+    }, [eaSession]);
+
     const renderWidget = (id: string) => {
         switch (id) {
             case 'dailyBias':
@@ -251,7 +256,16 @@ const Dashboard: React.FC<DashboardProps> = ({ isDarkMode, trades, dailyBias, on
             case 'openPositions':
                 return (
                     <div className={`h-full p-6 rounded-2xl border flex flex-col ${isDarkMode ? 'bg-[#18181b] border-[#27272a]' : 'bg-white border-slate-100 shadow-md'}`}>
-                        <h3 className="font-bold mb-4 flex items-center gap-2"><Activity size={18} className="text-emerald-500" /> Open Positions</h3>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-bold flex items-center gap-2"><Activity size={18} className="text-emerald-500" /> Open Positions</h3>
+                            {/* Display Total Floating P/L here */}
+                            <div className="text-right">
+                                <div className={`text-lg font-black font-mono leading-none ${totalFloatingPnL >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                    {totalFloatingPnL >= 0 ? '+' : ''}{userProfile.currencySymbol}{totalFloatingPnL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </div>
+                                <div className="text-[10px] font-bold opacity-40 uppercase tracking-widest mt-1">Total Floating P/L</div>
+                            </div>
+                        </div>
                         <OpenPositions
                             positions={(eaSession?.data?.openPositions || []).map((p: any) => ({
                                 ...p,
