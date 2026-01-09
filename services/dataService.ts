@@ -85,6 +85,46 @@ const uploadImage = async (userId: string, imageSource: string | undefined, type
   }
 };
 
+export const uploadNoteImage = async (file: File): Promise<string | null> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    // Check user plan limits
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('plan')
+      .eq('id', user.id)
+      .single();
+
+    if (profile?.plan === 'FREE TIER (JOURNALER)') {
+      alert('Image uploads are not available on the Free Tier. Please upgrade to Pro.');
+      return null;
+    }
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `notes/${user.id}/${Date.now()}.${fileExt}`;
+
+    const { data, error } = await supabase.storage
+      .from('trade-images') // Reusing existing bucket
+      .upload(fileName, file, {
+        contentType: file.type,
+        upsert: true
+      });
+
+    if (error) throw error;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('trade-images')
+      .getPublicUrl(data.path);
+
+    return publicUrl;
+  } catch (err) {
+    console.error('Error uploading note image:', err);
+    return null;
+  }
+};
+
 const deleteImageFile = async (imageUrl: string | undefined) => {
   if (!imageUrl || !imageUrl.includes('trade-images')) return;
 

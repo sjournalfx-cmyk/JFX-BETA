@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react';
+import React, { useEffect, useRef } from 'react';
+import { useEditor, EditorContent, ReactNodeViewRenderer } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import { StarterKit } from '@tiptap/starter-kit';
 import { TaskList } from '@tiptap/extension-task-list';
@@ -13,15 +13,17 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
+import Image from '@tiptap/extension-image';
 import BubbleMenuExtension from '@tiptap/extension-bubble-menu';
 import {
   Bold, Italic, Underline as UnderlineIcon, List,
   ListChecks, Table as TableIcon, Eraser, Type,
   Plus, Trash2, PlusCircle, ArrowUp, ArrowDown,
   ArrowLeft, ArrowRight, Combine, Split, GripHorizontal,
-  Palette
+  Palette, Image as ImageIcon
 } from 'lucide-react';
 import ConfirmationModal from './ConfirmationModal';
+import ImageNode from './RichTextEditorImage';
 
 interface RichTextEditorProps {
   content: string;
@@ -33,6 +35,7 @@ interface RichTextEditorProps {
   customToolbarItems?: React.ReactNode;
   showTooltips?: boolean;
   showToolbar?: boolean;
+  onImageUpload?: (file: File) => Promise<string | null>;
 }
 
 const TEXT_COLORS = [
@@ -71,6 +74,54 @@ const CustomTableCell = TableCell.extend({
   },
 });
 
+const CustomImage = Image.extend({
+  draggable: true,
+  addNodeView() {
+    return ReactNodeViewRenderer(ImageNode);
+  },
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: '200px',
+        renderHTML: attributes => ({
+          width: attributes.width,
+        }),
+      },
+      align: {
+        default: 'center',
+        renderHTML: attributes => ({
+          'data-align': attributes.align,
+        }),
+      },
+      hasBorder: {
+        default: false,
+        renderHTML: attributes => ({
+          'data-border': attributes.hasBorder,
+        }),
+      },
+      layout: {
+        default: 'block',
+        renderHTML: attributes => ({
+          'data-layout': attributes.layout,
+        }),
+      },
+      caption: {
+        default: '',
+        renderHTML: attributes => ({
+          'data-caption': attributes.caption,
+        }),
+      },
+      borderColor: {
+        default: 'auto',
+        renderHTML: attributes => ({
+          'data-border-color': attributes.borderColor,
+        }),
+      },
+    };
+  },
+});
+
 const RichTextEditor: React.FC<RichTextEditorProps> = ({
   content,
   onChange,
@@ -80,8 +131,11 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
   className = '',
   customToolbarItems,
   showTooltips = true,
-  showToolbar = false
+  showToolbar = false,
+  onImageUpload
 }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -106,6 +160,10 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
       Color,
       Underline,
       Placeholder.configure({ placeholder }),
+      CustomImage.configure({
+        inline: true,
+        allowBase64: true,
+      }),
     ],
     content: content,
     onUpdate: ({ editor }) => {
@@ -137,7 +195,40 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
     setConfirmModal({ isOpen: true, title, description, onConfirm, variant });
   };
 
+  const handleImageClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files && files.length > 0 && editor) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (onImageUpload) {
+          // Use provided upload handler
+          const url = await onImageUpload(file);
+          if (url) {
+            editor.chain().focus().setImage({ src: url }).run();
+          }
+        } else {
+          // Fallback to Base64
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const result = e.target?.result as string;
+            editor.chain().focus().setImage({ src: result }).run();
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+    }
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   // Sync content if it changes externally
+
   useEffect(() => {
     if (editor && content !== editor.getHTML()) {
       editor.commands.setContent(content);
@@ -305,6 +396,13 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
             onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 5, withHeaderRow: false }).run()}
             icon={TableIcon}
             title="Insert Table"
+            showTooltip={showTooltips}
+          />
+          
+          <ToolbarButton
+            onClick={handleImageClick}
+            icon={ImageIcon}
+            title="Insert Image"
             showTooltip={showTooltips}
           />
 
@@ -497,6 +595,16 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
         {/* Table UI Buttons (Add Row/Col) */}
       </div>
+      
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        style={{ display: 'none' }}
+        accept="image/*"
+        multiple
+        onChange={handleFileChange}
+      />
 
       <style>{`
         .ProseMirror {
