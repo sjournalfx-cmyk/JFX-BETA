@@ -21,7 +21,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { Trade, Note, DailyBias, UserProfile, Goal } from './types';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { authService } from './services/authService';
-import { dataService } from './services/dataService';
+import { dataService, mapTradeFromDB } from './services/dataService';
 import { supabase } from './lib/supabase';
 
 const App: React.FC = () => {
@@ -81,6 +81,44 @@ const App: React.FC = () => {
 
     initApp();
   }, []);
+
+  // Trades Realtime Subscription
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const channel = supabase
+      .channel('app_trades_global')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'trades'
+      }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const newTrade = mapTradeFromDB(payload.new);
+          setTrades(prev => {
+            // Prevent duplicates if already added locally
+            if (prev.some(t => t.id === newTrade.id)) return prev;
+            // Sort by date/time descending to maintain order
+            const updated = [newTrade, ...prev];
+            return updated.sort((a, b) => {
+                const dateA = new Date(`${a.date}T${a.time || '00:00:00'}`);
+                const dateB = new Date(`${b.date}T${b.time || '00:00:00'}`);
+                return dateB.getTime() - dateA.getTime();
+            });
+          });
+        } else if (payload.eventType === 'UPDATE') {
+          const updatedTrade = mapTradeFromDB(payload.new);
+          setTrades(prev => prev.map(t => t.id === updatedTrade.id ? updatedTrade : t));
+        } else if (payload.eventType === 'DELETE') {
+          setTrades(prev => prev.filter(t => t.id !== payload.old.id));
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isAuthenticated]);
 
   // EA Session Subscription
   useEffect(() => {
@@ -449,10 +487,10 @@ const App: React.FC = () => {
 
     const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0);
     const isPro = userProfile?.plan === 'PRO TIER (ANALYSTS)';
-    // Centralized currentBalance logic: use bridge equity if connected, otherwise fallback to journal PnL
+    // Centralized currentBalance logic: use bridge balance if connected, otherwise fallback to journal PnL
     // For PRO users, if not connected, balance is effectively 0 until sync
-    const currentBalance = eaSession?.data?.account?.equity !== undefined 
-      ? eaSession.data.account.equity 
+    const currentBalance = eaSession?.data?.account?.balance !== undefined 
+      ? eaSession.data.account.balance 
       : (isPro ? 0 : (userProfile.initialBalance + totalPnL));
   
     // Calculate Usage Stats

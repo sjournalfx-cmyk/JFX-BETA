@@ -61,8 +61,9 @@ def get_positions():
 
 def get_history():
     # Get history for the last 30 days
+    # Add 24h buffer to to_date to handle broker server timezones that are ahead of local time
     from_date = datetime.now().timestamp() - (30 * 24 * 60 * 60)
-    to_date = datetime.now().timestamp()
+    to_date = datetime.now().timestamp() + (24 * 60 * 60)
     deals = mt5.history_deals_get(from_date, to_date)
     
     if deals is None:
@@ -145,7 +146,7 @@ def main():
             except Exception as e:
                 print(f"Request failed: {e}")
 
-            time.sleep(2)
+            time.sleep(1)
 
     except KeyboardInterrupt:
         print("\nStopping Bridge...")

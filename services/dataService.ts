@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Trade, Note, DailyBias, UserProfile, Goal } from '../types';
 
 // Helper to map DB Trade to App Trade
-const mapTradeFromDB = (dbTrade: any): Trade => ({
+export const mapTradeFromDB = (dbTrade: any): Trade => ({
   ...dbTrade,
   ticketId: dbTrade.ticket_id,
   assetType: dbTrade.asset_type,

@@ -217,10 +217,10 @@ const Dashboard: React.FC<DashboardProps> = ({ isDarkMode, trades, dailyBias, on
     const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0);
     const isPro = userProfile.plan === 'PRO TIER (ANALYSTS)';
     
-    // If EA Session exists, use bridge equity as the source of truth for current balance
+    // If EA Session exists, use bridge balance as the source of truth for current balance
     // For PRO users, if not connected, show 0.00
-    const currentBalance = eaSession?.data?.account?.equity !== undefined
-        ? eaSession.data.account.equity
+    const currentBalance = eaSession?.data?.account?.balance !== undefined
+        ? eaSession.data.account.balance
         : (isPro ? 0 : (userProfile.initialBalance + totalPnL));
 
     const wins = trades.filter(t => t.result === 'Win');
