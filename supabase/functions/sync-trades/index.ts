@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
@@ -72,10 +71,10 @@ serve(async (req) => {
         const { error: upsertError } = await supabaseClient
             .from('ea_sessions')
             .upsert({
-                syncKey: syncKey,
+                sync_key: syncKey,
                 data: sessionData,
-                lastUpdated: new Date().toISOString()
-            }, { onConflict: 'syncKey' });
+                last_updated: new Date().toISOString()
+            }, { onConflict: 'sync_key' });
 
         if (upsertError) {
             console.error('Error upserting session:', upsertError);
@@ -109,17 +108,17 @@ serve(async (req) => {
                 // Map MT5 trade to DB schema
                 // Calculate Net PnL (Profit + Swap + Commission)
                 const netPnL = Number((trade.profit + (trade.swap || 0) + (trade.commission || 0)).toFixed(2));
-                
+
                 const dbTrade = {
                     user_id: profile.id,
                     ticket_id: String(trade.ticket),
                     pair: trade.symbol,
-                    asset_type: 'Forex', 
+                    asset_type: 'Forex',
                     date: new Date(trade.time * 1000).toISOString().split('T')[0],
                     time: new Date(trade.time * 1000).toTimeString().split(' ')[0],
                     session: 'New York', // Placeholder
                     direction: trade.type === 'BUY' ? 'Long' : 'Short',
-                    entry_price: trade.entry_price || trade.price, 
+                    entry_price: trade.entry_price || trade.price,
                     exit_price: trade.price,
                     stop_loss: 0,
                     take_profit: 0,
@@ -132,10 +131,10 @@ serve(async (req) => {
                     notes: `Auto-journaled from MT5. Deal #${trade.ticket} | Order #${trade.order}`,
                     plan_adherence: 'No Plan',
                 };
-                
+
                 // Only insert if it's an exit deal (entry = 1 or 2) 
-                if (trade.entry === 1 || trade.entry === 2) { 
-                     newTrades.push(dbTrade);
+                if (trade.entry === 1 || trade.entry === 2) {
+                    newTrades.push(dbTrade);
                 }
             }
 
@@ -143,7 +142,7 @@ serve(async (req) => {
                 const { error: insertError } = await supabaseClient
                     .from('trades')
                     .insert(newTrades);
-                
+
                 if (insertError) {
                     console.error('Error syncing history:', insertError);
                 } else {

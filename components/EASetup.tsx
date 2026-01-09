@@ -34,8 +34,8 @@ const Bridge: React.FC<BridgeProps> = ({ isDarkMode, userProfile, onUpdateProfil
                 const data = await dataService.getEASession(syncKey);
                 if (data) {
                     setLiveData(data.data);
-                    setLastHeartbeat(new Date(data.lastUpdated));
-                    setSyncLog(prev => [{ time: new Date(), message: 'Initial data loaded', type: 'info' }, ...prev].slice(0, 5));
+                    setLastHeartbeat(new Date(data.last_updated));
+                    setSyncLog(prev => [{ time: new Date(), message: 'Initial data loaded', type: 'info' } as const, ...prev].slice(0, 5));
                 }
             };
             fetchSession();
@@ -48,10 +48,10 @@ const Bridge: React.FC<BridgeProps> = ({ isDarkMode, userProfile, onUpdateProfil
                     table: 'ea_sessions'
                 }, (payload) => {
                     // Manual filter for robustness
-                    if (payload.new && (payload.new as any).syncKey === syncKey) {
+                    if (payload.new && (payload.new as any).sync_key === syncKey) {
                         const newData = (payload.new as any).data;
                         setLiveData(newData);
-                        setLastHeartbeat(new Date((payload.new as any).lastUpdated));
+                        setLastHeartbeat(new Date((payload.new as any).last_updated));
 
                         // Add entry to log
                         const isHeartbeat = newData.isHeartbeat;
@@ -59,7 +59,7 @@ const Bridge: React.FC<BridgeProps> = ({ isDarkMode, userProfile, onUpdateProfil
                         const msg = isHeartbeat ? 'Heartbeat received' : `Synced ${tradeCount} trades from terminal`;
 
                         setSyncLog(prev => [
-                            { time: new Date(), message: msg, type: 'success' },
+                            { time: new Date(), message: msg, type: 'success' } as const,
                             ...prev
                         ].slice(0, 5));
                     }
@@ -261,7 +261,7 @@ const BridgeMonitor = ({ isDarkMode, liveData, lastHeartbeat, syncKey, syncLog, 
                             </div>
                         </div>
                     </div>
-                    <div className={`w-32 h-32 rounded-full border-8 ${isOnline ? 'border-emerald-500/10' : 'border-rose-500/10'} flex items-center justify-center relative`}>
+                    <div className={`w-32 h-32 rounded-full border-8 ${isOnline ? 'border-emerald-500/30' : 'border-rose-500/30'} flex items-center justify-center relative transition-colors duration-500`}>
                         {isOnline ? (
                             <div className="relative flex items-center justify-center" style={{ animation: 'heartbeat 2s infinite ease-in-out' }}>
                                 <svg width="60" height="40" viewBox="0 0 60 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -280,10 +280,12 @@ const BridgeMonitor = ({ isDarkMode, liveData, lastHeartbeat, syncKey, syncLog, 
                                 </svg>
                             </div>
                         ) : (
-                            <Activity size={48} className="text-rose-500 opacity-40" />
+                            <Activity size={48} className="text-rose-500" />
                         )}
-                        {isOnline && (
-                            <div className="absolute inset-0 rounded-full border-2 border-emerald-500/20 animate-ping" />
+                        {isOnline ? (
+                            <div className="absolute inset-0 rounded-full border-4 border-emerald-500/60 animate-ping" />
+                        ) : (
+                            <div className="absolute inset-0 rounded-full border-4 border-rose-500/60" />
                         )}
                     </div>
                 </div>
@@ -437,7 +439,7 @@ const BridgeWizard = ({ isDarkMode, onComplete, userProfile }: any) => {
                     event: '*',
                     schema: 'public',
                     table: 'ea_sessions',
-                    filter: `syncKey=eq.${syncKey}`
+                    filter: `sync_key=eq.${syncKey}`
                 }, (payload) => {
                     setConnectionStatus('success');
                 })
@@ -455,8 +457,8 @@ const BridgeWizard = ({ isDarkMode, onComplete, userProfile }: any) => {
     const cardBg = isDarkMode ? 'bg-[#111] border-zinc-800' : 'bg-white border-zinc-100 shadow-sm';
     const subTextColor = isDarkMode ? 'text-zinc-500' : 'text-[#666666]';
     const codeBg = isDarkMode ? 'bg-[#000] border-zinc-800' : 'bg-zinc-100 border-zinc-200';
-    const backendUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-trades`;
-    const apiKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const backendUrl = `${(import.meta as any).env.VITE_SUPABASE_URL}/functions/v1/sync-trades`;
+    const apiKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
 
     return (
         <div className="w-full h-full overflow-y-auto custom-scrollbar">

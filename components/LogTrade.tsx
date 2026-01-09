@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar, Clock, Target, Hash, Image as ImageIcon, Save, ChevronRight, ChevronLeft, TrendingUp, TrendingDown, Layout, Type, CheckCircle2, XCircle, MinusCircle, Upload, FileText, ArrowRight, Brain, AlertTriangle, ShieldCheck, Check, ChevronDown, X, Star, Eye, Trash2, Square } from 'lucide-react';
-import { Trade, AssetType } from '../types';
+import { Calendar, Clock, Target, Hash, Image as ImageIcon, Save, ChevronRight, ChevronLeft, TrendingUp, TrendingDown, Layout, Type, CheckCircle2, XCircle, MinusCircle, Upload, FileText, ArrowRight, Brain, AlertTriangle, ShieldCheck, Check, ChevronDown, X, Star, Eye, Trash2, Square, Lock } from 'lucide-react';
+import { Trade, AssetType, UserProfile } from '../types';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import RichTextEditor from './RichTextEditor';
 import { Select } from './Select';
@@ -12,6 +12,7 @@ interface LogTradeProps {
     initialTrade?: Trade;
     onCancel?: () => void;
     currencySymbol: string;
+    userProfile?: UserProfile | null;
 }
 
 // --- Helper Functions ---
@@ -159,8 +160,10 @@ const StepIndicator = ({ current, total, isDarkMode }: { current: number, total:
     </div>
 );
 
-const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, onCancel, currencySymbol }) => {
+const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, onCancel, currencySymbol, userProfile }) => {
     const [step, setStep] = useState(1);
+    // More robust check for free tier
+    const isFreeTier = !userProfile || userProfile.plan === 'FREE TIER (JOURNALER)';
 
     // Confirmation Modal State
     const [confirmModal, setConfirmModal] = useState<{
@@ -183,11 +186,11 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
         time: initialTrade?.time || new Date().toTimeString().split(' ')[0].slice(0, 5),
         session: initialTrade?.session || getSessionFromTime(new Date().toTimeString().split(' ')[0].slice(0, 5)),
         direction: initialTrade?.direction || 'Long' as 'Long' | 'Short',
-        entryPrice: initialTrade?.entryPrice.toString() || '',
+        entryPrice: initialTrade?.entryPrice?.toString() || '',
         exitPrice: initialTrade?.exitPrice?.toString() || '',
-        stopLoss: initialTrade?.stopLoss.toString() || '',
-        takeProfit: initialTrade?.takeProfit.toString() || '',
-        lots: initialTrade?.lots.toString() || '1.00',
+        stopLoss: initialTrade?.stopLoss?.toString() || '',
+        takeProfit: initialTrade?.takeProfit?.toString() || '',
+        lots: initialTrade?.lots?.toString() || '1.00',
         result: initialTrade?.result || 'Pending' as 'Win' | 'Loss' | 'BE' | 'Pending',
         rating: initialTrade?.rating || 0,
         emotions: initialTrade?.emotions || [] as string[],
@@ -196,7 +199,7 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
         planAdherence: initialTrade?.planAdherence || 'Followed Exactly',
         tradingMistake: initialTrade?.tradingMistake || 'None',
         mindset: initialTrade?.mindset || 'Neutral',
-        tags: initialTrade?.tags.join(', ') || '',
+        tags: initialTrade?.tags?.join(', ') || '',
     });
 
     const [metrics, setMetrics] = useState({ risk: 0, reward: 0, rr: 0 });
@@ -265,8 +268,22 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
             const rewardDist = Math.abs(tp - entry);
             const rrRatio = riskDist > 0 ? rewardDist / riskDist : 0;
 
-            const riskPnL = calculatePnL({ ...formData, entryPrice: entry, stopLoss: sl, result: 'Loss', lots });
-            const rewardPnL = calculatePnL({ ...formData, entryPrice: entry, takeProfit: tp, result: 'Win', lots });
+            const riskPnL = calculatePnL({ 
+                ...formData, 
+                entryPrice: entry, 
+                stopLoss: sl, 
+                result: 'Loss', 
+                lots,
+                exitPrice: formData.exitPrice ? parseFloat(formData.exitPrice) : undefined
+            } as any);
+            const rewardPnL = calculatePnL({ 
+                ...formData, 
+                entryPrice: entry, 
+                takeProfit: tp, 
+                result: 'Win', 
+                lots,
+                exitPrice: formData.exitPrice ? parseFloat(formData.exitPrice) : undefined
+            } as any);
 
             setMetrics({
                 risk: Math.abs(riskPnL),
@@ -294,6 +311,7 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
     const afterInputRef = useRef<HTMLInputElement>(null);
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'before' | 'after') => {
+        if (isFreeTier) return;
         const file = e.target.files?.[0];
         if (file) {
             const reader = new FileReader();
@@ -325,7 +343,14 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
             return;
         }
 
-        const simulatedPnL = calculatePnL({ ...formData, entryPrice: entry, stopLoss: sl, takeProfit: tp, lots });
+        const simulatedPnL = calculatePnL({ 
+            ...formData, 
+            entryPrice: entry, 
+            stopLoss: sl, 
+            takeProfit: tp, 
+            lots,
+            exitPrice: formData.exitPrice ? parseFloat(formData.exitPrice) : undefined
+        } as any);
 
         const newTrade: Trade = {
             id: initialTrade?.id || Date.now().toString(),
@@ -374,6 +399,12 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
 
     const ratingTheme = getRatingTheme(formData.rating);
 
+    const LockedBadge = () => (
+        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 text-[9px] font-black uppercase tracking-widest border border-amber-500/20">
+            <Lock size={10} /> PRO
+        </div>
+    );
+
     return (
         <div className={`w-full h-full overflow-hidden flex flex-col font-sans ${isDarkMode ? 'bg-[#09090b] text-zinc-200' : 'bg-[#F8FAFC] text-slate-900'}`}>
 
@@ -419,8 +450,16 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
                             <X size={14} /> Cancel Edit
                         </button>
                     )}
-                    <button className={`hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold border transition-all ${isDarkMode ? 'border-[#27272a] text-zinc-400 hover:bg-[#27272a] hover:text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}>
-                        <Upload size={14} /> Import MT4/MT5
+                    <button 
+                        disabled={isFreeTier}
+                        className={`hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold border transition-all ${
+                            isFreeTier
+                            ? 'opacity-50 cursor-not-allowed border-zinc-200 text-zinc-400'
+                            : isDarkMode ? 'border-[#27272a] text-zinc-400 hover:bg-[#27272a] hover:text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                        }`}
+                    >
+                        {isFreeTier ? <Lock size={14} /> : <Upload size={14} />} 
+                        Import MT4/MT5
                     </button>
                     <button
                         onClick={finalizeSave}
@@ -680,10 +719,14 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
                             {step === 3 && (
                                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div>
+                                        <div className="relative group">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <Label className="!mb-0">Mindset/Psychology</Label>
+                                                {isFreeTier && <LockedBadge />}
+                                            </div>
                                             <Select
                                                 isDarkMode={isDarkMode}
-                                                label="Mindset/Psychology"
+                                                disabled={isFreeTier}
                                                 icon={Brain}
                                                 value={formData.mindset}
                                                 onChange={(val) => handleInputChange('mindset', val)}
@@ -696,10 +739,14 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
                                                 ]}
                                             />
                                         </div>
-                                        <div>
+                                        <div className="relative group">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <Label className="!mb-0">Plan Adherence</Label>
+                                                {isFreeTier && <LockedBadge />}
+                                            </div>
                                             <Select
                                                 isDarkMode={isDarkMode}
-                                                label="Plan Adherence"
+                                                disabled={isFreeTier}
                                                 icon={ShieldCheck}
                                                 value={formData.planAdherence}
                                                 onChange={(val) => handleInputChange('planAdherence', val)}
@@ -714,10 +761,14 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                                        <div className="col-span-2">
+                                        <div className="col-span-2 relative group">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <Label className="!mb-0">Trading Mistake</Label>
+                                                {isFreeTier && <LockedBadge />}
+                                            </div>
                                             <Select
                                                 isDarkMode={isDarkMode}
-                                                label="Trading Mistake"
+                                                disabled={isFreeTier}
                                                 icon={AlertTriangle}
                                                 value={formData.tradingMistake}
                                                 onChange={(val) => handleInputChange('tradingMistake', val)}
@@ -750,18 +801,25 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                                        <div>
-                                            <Label>Entry/Before Screenshot</Label>
+                                        <div className="relative group">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <Label className="!mb-0">Entry/Before Screenshot</Label>
+                                                {isFreeTier && <LockedBadge />}
+                                            </div>
                                             <input
                                                 type="file"
                                                 ref={beforeInputRef}
                                                 className="hidden"
                                                 accept="image/*"
+                                                disabled={isFreeTier}
                                                 onChange={(e) => handleFileUpload(e, 'before')}
                                             />
                                             <div
-                                                className={`w-full h-32 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 transition-all overflow-hidden relative ${isDarkMode ? 'border-[#27272a] bg-[#18181b]/50 hover:border-violet-500 hover:bg-[#18181b]' : 'border-slate-300 bg-slate-50 hover:border-violet-500 hover:bg-slate-100'
-                                                    }`}>
+                                                onClick={() => !isFreeTier && beforeInputRef.current?.click()}
+                                                className={`w-full h-32 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 transition-all overflow-hidden relative ${
+                                                    isFreeTier ? 'opacity-50 cursor-not-allowed border-zinc-200 bg-zinc-50 dark:bg-zinc-900/30' :
+                                                    isDarkMode ? 'border-[#27272a] bg-[#18181b]/50 hover:border-violet-500 hover:bg-[#18181b] cursor-pointer' : 'border-slate-300 bg-slate-50 hover:border-violet-500 hover:bg-slate-100 cursor-pointer'
+                                                }`}>
                                                 {screenshots.before ? (
                                                     <>
                                                         <img src={screenshots.before} className="w-full h-full object-cover" alt="Before" />
@@ -783,29 +841,36 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
                                                         </div>
                                                     </>
                                                 ) : (
-                                                    <div onClick={() => beforeInputRef.current?.click()} className="w-full h-full flex flex-col items-center justify-center gap-3 cursor-pointer">
-                                                        <div className={`p-3 rounded-full ${isDarkMode ? 'bg-violet-500/10 text-violet-400' : 'bg-violet-50 text-violet-600'}`}>
-                                                            <ImageIcon size={20} />
+                                                    <div className="w-full h-full flex flex-col items-center justify-center gap-3">
+                                                        <div className={`p-3 rounded-full ${isFreeTier ? 'bg-zinc-200 text-zinc-400' : isDarkMode ? 'bg-violet-500/10 text-violet-400' : 'bg-violet-50 text-violet-600'}`}>
+                                                            {isFreeTier ? <Lock size={20} /> : <ImageIcon size={20} />}
                                                         </div>
                                                         <div className="text-center">
-                                                            <p className="text-xs font-semibold">Click to upload before</p>
+                                                            <p className="text-xs font-semibold">{isFreeTier ? 'Feature Locked' : 'Click to upload before'}</p>
                                                         </div>
                                                     </div>
                                                 )}
                                             </div>
                                         </div>
-                                        <div>
-                                            <Label>Exit/After Screenshot</Label>
+                                        <div className="relative group">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <Label className="!mb-0">Exit/After Screenshot</Label>
+                                                {isFreeTier && <LockedBadge />}
+                                            </div>
                                             <input
                                                 type="file"
                                                 ref={afterInputRef}
                                                 className="hidden"
                                                 accept="image/*"
+                                                disabled={isFreeTier}
                                                 onChange={(e) => handleFileUpload(e, 'after')}
                                             />
                                             <div
-                                                className={`w-full h-32 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 transition-all overflow-hidden relative ${isDarkMode ? 'border-[#27272a] bg-[#18181b]/50 hover:border-violet-500 hover:bg-[#18181b]' : 'border-slate-300 bg-slate-50 hover:border-violet-500 hover:bg-slate-100'
-                                                    }`}>
+                                                onClick={() => !isFreeTier && afterInputRef.current?.click()}
+                                                className={`w-full h-32 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 transition-all overflow-hidden relative ${
+                                                    isFreeTier ? 'opacity-50 cursor-not-allowed border-zinc-200 bg-zinc-50 dark:bg-zinc-900/30' :
+                                                    isDarkMode ? 'border-[#27272a] bg-[#18181b]/50 hover:border-violet-500 hover:bg-[#18181b] cursor-pointer' : 'border-slate-300 bg-slate-50 hover:border-violet-500 hover:bg-slate-100 cursor-pointer'
+                                                }`}>
                                                 {screenshots.after ? (
                                                     <>
                                                         <img src={screenshots.after} className="w-full h-full object-cover" alt="After" />
@@ -827,12 +892,12 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
                                                         </div>
                                                     </>
                                                 ) : (
-                                                    <div onClick={() => afterInputRef.current?.click()} className="w-full h-full flex flex-col items-center justify-center gap-3 cursor-pointer">
-                                                        <div className={`p-3 rounded-full ${isDarkMode ? 'bg-violet-500/10 text-violet-400' : 'bg-violet-50 text-violet-600'}`}>
-                                                            <ImageIcon size={20} />
+                                                    <div className="w-full h-full flex flex-col items-center justify-center gap-3">
+                                                        <div className={`p-3 rounded-full ${isFreeTier ? 'bg-zinc-200 text-zinc-400' : isDarkMode ? 'bg-violet-500/10 text-violet-400' : 'bg-violet-50 text-violet-600'}`}>
+                                                            {isFreeTier ? <Lock size={20} /> : <ImageIcon size={20} />}
                                                         </div>
                                                         <div className="text-center">
-                                                            <p className="text-xs font-semibold">Click to upload after</p>
+                                                            <p className="text-xs font-semibold">{isFreeTier ? 'Feature Locked' : 'Click to upload after'}</p>
                                                         </div>
                                                     </div>
                                                 )}

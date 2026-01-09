@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Globe, DollarSign, Zap, ChevronRight, CheckCircle2, ShieldCheck, ArrowRight, ArrowLeft, Terminal, Shield, Flame, Check, Wallet, Cpu } from 'lucide-react';
+import { User, Globe, DollarSign, Zap, ChevronRight, CheckCircle2, ShieldCheck, ArrowRight, ArrowLeft, Terminal, Shield, Flame, Check, Wallet, Cpu, Lock, Camera } from 'lucide-react';
 import { UserProfile } from '../types';
 import { dataService } from '../services/dataService';
 
@@ -14,6 +14,36 @@ const CURRENCIES = [
   { code: 'EUR', symbol: '€', name: 'Euro' },
   { code: 'GBP', symbol: '£', name: 'British Pound' },
   { code: 'ZAR', symbol: 'R', name: 'South African Rand' },
+];
+
+// Journaler Bots (Free Tier)
+const freeAvatars = [
+  'https://api.dicebear.com/7.x/bottts/svg?seed=1&backgroundColor=f1f5f9',
+  'https://api.dicebear.com/7.x/bottts/svg?seed=2&backgroundColor=f1f5f9',
+  'https://api.dicebear.com/7.x/bottts/svg?seed=3&backgroundColor=f1f5f9',
+  'https://api.dicebear.com/7.x/bottts/svg?seed=4&backgroundColor=f1f5f9',
+  'https://api.dicebear.com/7.x/bottts/svg?seed=5&backgroundColor=f1f5f9',
+  'https://api.dicebear.com/7.x/bottts/svg?seed=6&backgroundColor=f1f5f9',
+];
+
+// AI Analysts (Pro Tier)
+const proAvatars = [
+  'https://api.dicebear.com/8.x/bottts-neutral/svg?seed=1&backgroundColor=e9d5ff&primaryColor=a855f7,c026d3,d8b4fe&backgroundType=gradientLinear',
+  'https://api.dicebear.com/8.x/bottts-neutral/svg?seed=2&backgroundColor=e9d5ff&primaryColor=a855f7,c026d3,d8b4fe&backgroundType=gradientLinear',
+  'https://api.dicebear.com/8.x/thumbs/svg?seed=1&backgroundColor=e9d5ff,d8b4fe,c084fc&backgroundType=gradientLinear',
+  'https://api.dicebear.com/8.x/identicon/svg?seed=1&backgroundColor=fefce8,fef9c3,fef08a&backgroundType=gradientLinear',
+  'https://api.dicebear.com/8.x/identicon/svg?seed=2&backgroundColor=fefce8,fef9c3,fef08a&backgroundType=gradientLinear',
+  'https://api.dicebear.com/8.x/identicon/svg?seed=3&backgroundColor=fefce8,fef9c3,fef08a&backgroundType=gradientLinear',
+];
+
+// Elite AI Masters (Premium Tier)
+const premiumAvatars = [
+  'https://api.dicebear.com/7.x/lorelei/svg?seed=1&backgroundColor=c7d2fe',
+  'https://api.dicebear.com/7.x/lorelei/svg?seed=2&backgroundColor=c7d2fe',
+  'https://api.dicebear.com/7.x/lorelei/svg?seed=3&backgroundColor=c7d2fe',
+  'https://api.dicebear.com/7.x/adventurer/svg?seed=1&backgroundColor=c7d2fe',
+  'https://api.dicebear.com/7.x/adventurer/svg?seed=2&backgroundColor=c7d2fe',
+  'https://api.dicebear.com/7.x/adventurer/svg?seed=3&backgroundColor=c7d2fe',
 ];
 
 const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
@@ -32,7 +62,8 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
     experienceLevel: 'Beginner',
     tradingStyle: 'Day Trader',
     onboarded: true,
-    plan: 'Free Plan'
+    plan: 'FREE TIER (JOURNALER)',
+    avatarUrl: freeAvatars[0]
   });
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -47,21 +78,23 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
     }
   };
 
-  const isFreePlan = selectedPlan === 'Free Plan';
+  const isFreePlan = selectedPlan === 'FREE TIER (JOURNALER)';
 
   const nextStep = () => {
     if (step === 4 && isFreePlan) {
       // Skip Sync Tech, go to Account Config
-      setFormData(prev => ({ ...prev, syncMethod: 'Manual', plan: 'Free Plan' }));
+      setFormData(prev => ({ ...prev, syncMethod: 'Manual', plan: 'FREE TIER (JOURNALER)' }));
       setStep(6);
     } else {
-      setStep(s => Math.min(s + 1, 6));
+      setStep(s => Math.min(s + 1, 7));
     }
   };
 
   const prevStep = () => {
     if (step === 6 && isFreePlan) {
       setStep(4);
+    } else if (step === 7 && formData.plan === 'PRO TIER (ANALYSTS)' && formData.syncMethod === 'EA_CONNECT') {
+      setStep(5);
     } else {
       setStep(s => Math.max(s - 1, 1));
     }
@@ -69,9 +102,13 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
 
   const handleSelectPlan = (planName: string) => {
     setSelectedPlan(planName);
-    setFormData(prev => ({ ...prev, plan: planName }));
-    if (planName === 'Free Plan') {
-      setFormData(prev => ({ ...prev, syncMethod: 'Manual', plan: 'Free Plan' }));
+    const defaultAvatar = planName === 'FREE TIER (JOURNALER)' ? freeAvatars[0] : 
+                         planName === 'PRO TIER (ANALYSTS)' ? proAvatars[0] : premiumAvatars[0];
+    
+    setFormData(prev => ({ ...prev, plan: planName, avatarUrl: defaultAvatar }));
+    
+    if (planName === 'FREE TIER (JOURNALER)') {
+      setFormData(prev => ({ ...prev, syncMethod: 'Manual', plan: 'FREE TIER (JOURNALER)', avatarUrl: freeAvatars[0] }));
       setStep(6); // Jump to Account Config
     } else {
       setStep(5); // Go to Sync Tech
@@ -87,14 +124,13 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
     };
 
     setFormData(updatedData);
-
-    if (method === 'EA_CONNECT') {
-      // Immediately complete onboarding for EA users to redirect to the App (Dashboard)
-      onComplete(updatedData);
-      return;
-    }
     
-    setStep(6); // Show Account Config for manual users
+    // For PRO TIER, selecting EA CONNECT goes to avatar selection before completing
+    if (method === 'EA_CONNECT' && formData.plan === 'PRO TIER (ANALYSTS)') {
+      setStep(7);
+    } else {
+      setStep(6);
+    }
   };
 
   const handleFinish = () => {
@@ -108,7 +144,10 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
   const subTextColor = isDarkMode ? 'text-zinc-500' : 'text-[#666666]';
 
   // Total steps for UI display
-  const totalStepsUI = 6;
+  const totalStepsUI = 7;
+
+  const currentAvatars = formData.plan === 'FREE TIER (JOURNALER)' ? freeAvatars : 
+                        formData.plan === 'PRO TIER (ANALYSTS)' ? proAvatars : premiumAvatars;
 
   return (
     <div className={`fixed inset-0 z-[200] flex flex-col items-center justify-start overflow-y-auto ${containerBg} ${textColor} font-sans`}>
@@ -117,7 +156,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
         {/* Header Navigation */}
         <div className="flex items-center justify-between mb-12">
           <div className="flex gap-1.5 items-center">
-            {[1, 2, 3, 4, 5, 6].map((s) => (
+            {[1, 2, 3, 4, 5, 6, 7].map((s) => (
               <div
                 key={s}
                 className={`h-2.5 rounded-full transition-all duration-300 ${s === step ? 'w-8 bg-[#FF4F01]' : s < step ? 'w-2.5 bg-[#FF4F01]/40' : 'w-2.5 bg-zinc-200 dark:bg-zinc-800'
@@ -126,7 +165,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
             ))}
           </div>
           <div className="flex items-center gap-4">
-            {step === 6 && (
+            {step === 7 && (
               <div className="flex gap-2">
                 <span className="border border-[#FF4F01] text-[10px] font-bold px-2 py-1 rounded text-[#FF4F01] uppercase tracking-widest animate-pulse">Final Step</span>
               </div>
@@ -253,21 +292,78 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
               <h1 className="text-5xl font-bold tracking-tight mb-4">Choose your plan</h1>
               <p className={`text-lg mb-12 ${subTextColor}`}>Select a plan to access professional metrics. You can always change later.</p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[
-                  { name: 'Free Plan', desc: 'Lightweight journaling. Manual entry only.', price: '0', limit: '50 trades / mo', highlight: false, tag: 'Starter' },
-                  { name: 'Hobby', desc: 'Great for retail traders.', price: '19', limit: '500 trades / mo', highlight: false, tag: 'Popular' },
-                  { name: 'Standard', desc: 'AI tools and unlimited sync.', price: '49', limit: 'Unlimited trades', highlight: true, tag: 'Most popular' },
-                  { name: 'Growth', desc: 'Built for high frequency.', price: '199', limit: 'Enterprise Support', highlight: false, tag: 'Pro' }
+                  { 
+                    name: 'FREE TIER (JOURNALER)', 
+                    focus: 'Lightweight journaling for beginners.',
+                    features: [
+                      'Manual Trade Logging',
+                      'Basic Journal & Daily Bias',
+                      'Essential Analytics',
+                      'Notebook (Max 1 note)',
+                      'No image uploads'
+                    ],
+                    price: '0', 
+                    limit: '50 trades / mo', 
+                    highlight: false, 
+                    tag: 'Starter' 
+                  },
+                  { 
+                    name: 'PRO TIER (ANALYSTS)', 
+                    focus: 'Data-driven automated trading.',
+                    features: [
+                      'Everything in FREE',
+                      'EA Sync Technology',
+                      'Advanced Analytics',
+                      '1 Custom Chart Layout',
+                      'Strategy Mapper',
+                      'Goals & Calculators',
+                      'Attach up to 1000 images'
+                    ],
+                    price: '4.99', 
+                    limit: '500 trades / mo', 
+                    highlight: false, 
+                    tag: 'Popular' 
+                  },
+                  { 
+                    name: 'PREMIUM (MASTERS)', 
+                    focus: 'Direct integration for professionals.',
+                    features: [
+                      'Everything in PRO',
+                      'Direct Broker Sync (API)',
+                      'AI Trade Insights',
+                      'Multiple Chart Layouts',
+                      'Advanced Playbooks',
+                      'Unlimited image attachments',
+                      'Voice Record Note Attachments'
+                    ],
+                    price: '14.99', 
+                    limit: 'Unlimited trades', 
+                    highlight: true, 
+                    tag: 'Most popular' 
+                  }
                 ].map((plan, idx) => (
                   <div key={idx} className={`p-8 rounded-2xl border-2 flex flex-col h-full relative ${plan.highlight ? 'border-[#FF4F01]' : isDarkMode ? 'bg-[#111] border-zinc-800' : 'bg-white border-zinc-100 shadow-sm'}`}>
                     {plan.highlight && <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#FF4F01] text-white text-[10px] font-black uppercase px-3 py-1 rounded-full tracking-widest">{plan.tag}</div>}
-                    <h3 className="font-bold text-xl mb-2">{plan.name}</h3>
-                    <p className="text-sm opacity-50 mb-8 min-h-[60px]">{plan.desc}</p>
-                    <div className="flex items-center gap-2 mb-10 text-zinc-500">
+                    
+                    <h3 className="font-bold text-xl mb-1">{plan.name}</h3>
+                    <p className="text-[10px] font-bold text-[#FF4F01] uppercase tracking-wider mb-6 opacity-80">{plan.focus}</p>
+                    
+                    <ul className="space-y-3 mb-8 flex-1">
+                      {plan.features.map((feat, fidx) => (
+                        <li key={fidx} className="flex items-start gap-2.5 text-[13px] opacity-70">
+                          <Check size={14} className="text-[#FF4F01] shrink-0 mt-0.5" />
+                          <span className="leading-tight">{feat}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <div className="flex items-center gap-2 mb-8 text-zinc-500">
                       <Flame size={18} className={plan.highlight ? 'text-[#FF4F01]' : ''} />
-                      <span className="text-sm font-bold uppercase tracking-widest">{plan.limit}</span>
+                      <span className="text-xs font-bold uppercase tracking-widest">{plan.limit}</span>
                     </div>
+
                     <div className="mt-auto">
                       <div className="mb-6"><span className="text-5xl font-black">{formData.currencySymbol}{plan.price}</span> <span className="text-xs opacity-50 uppercase font-bold tracking-widest">{idx === 0 ? 'one-time' : '/monthly'}</span></div>
                       <button onClick={() => handleSelectPlan(plan.name)} className={`w-full py-4 rounded-xl font-bold text-sm transition-all ${plan.highlight ? 'bg-[#FF4F01] text-white hover:bg-[#e64601] shadow-lg shadow-[#FF4F01]/20' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}>
@@ -288,10 +384,11 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <button
                   onClick={() => handleSelectSync('Manual')}
+                  disabled={formData.plan === 'PRO TIER (ANALYSTS)'}
                   className={`p-10 rounded-[32px] border-2 text-left transition-all group relative overflow-hidden ${formData.syncMethod === 'Manual'
                       ? 'border-[#FF4F01] bg-[#FF4F01]/5'
                       : isDarkMode ? 'border-zinc-800 bg-[#111]' : 'border-zinc-100 bg-white shadow-sm'
-                    }`}
+                    } ${formData.plan === 'PRO TIER (ANALYSTS)' ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-8 transition-colors ${formData.syncMethod === 'Manual' ? 'bg-[#FF4F01] text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500'}`}>
                     <ShieldCheck size={28} />
@@ -391,6 +488,60 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
               </div>
             </div>
           )}
+
+          {step === 7 && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl">
+              <h1 className="text-5xl font-bold tracking-tight mb-4">Choose Your Avatar</h1>
+              <p className={`text-lg mb-8 ${subTextColor}`}>Select a persona that represents your trading style.</p>
+
+              <div className="flex items-center gap-2 mb-6">
+                <h4 className="text-xs font-bold uppercase tracking-widest opacity-60">
+                  {formData.plan === 'FREE TIER (JOURNALER)' ? 'Free Tier (Journaler Bots)' : 
+                   formData.plan === 'PRO TIER (ANALYSTS)' ? 'Pro Tier (AI Analysts)' : 'Premium Tier (Elite Masters)'}
+                </h4>
+                <div className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${
+                  formData.plan === 'PRO TIER (ANALYSTS)' ? 'bg-indigo-500/10 text-indigo-500' :
+                  formData.plan === 'PREMIUM (MASTERS)' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' :
+                  'bg-zinc-500/10 text-zinc-500'
+                }`}>
+                  {formData.plan === 'PRO TIER (ANALYSTS)' ? 'Pro' : 
+                   formData.plan === 'PREMIUM (MASTERS)' ? 'Elite' : 'Starter'}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-6">
+                {currentAvatars.map((url, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setFormData({ ...formData, avatarUrl: url })}
+                    className={`aspect-square rounded-3xl overflow-hidden border-4 transition-all relative group ${formData.avatarUrl === url
+                        ? 'border-[#FF4F01] scale-105 shadow-xl shadow-[#FF4F01]/20'
+                        : isDarkMode ? 'border-zinc-800 bg-[#111] opacity-50 hover:opacity-100' : 'border-zinc-100 bg-white shadow-sm opacity-50 hover:opacity-100'
+                      }`}
+                  >
+                    <img src={url} alt="Avatar" className="w-full h-full object-cover" />
+                    {formData.avatarUrl === url && (
+                      <div className="absolute inset-0 bg-[#FF4F01]/10 flex items-center justify-center">
+                        <div className="bg-[#FF4F01] text-white p-1 rounded-full shadow-lg">
+                          <Check size={16} strokeWidth={4} />
+                        </div>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-12 p-6 rounded-2xl border border-dashed border-zinc-800 flex items-center gap-6">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#FF4F01] to-orange-600 flex items-center justify-center text-white shadow-xl overflow-hidden shrink-0">
+                  <img src={formData.avatarUrl} alt="Selected Avatar" className="w-full h-full object-cover" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-xl mb-1">Looking good, {formData.name || 'Trader'}!</h4>
+                  <p className="text-sm opacity-50">This is how you will appear across the platform and in your analytics reports.</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Sticky Footer */}
@@ -404,12 +555,12 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
           </button>
 
           <div className="flex items-center gap-4">
-            {step < 6 ? (
+            {step < 7 ? (
               <div className="flex items-center gap-4">
                 {step === 5 && (
                   <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Select Sync Method Above</div>
                 )}
-                {(step < 5 || (step === 5 && formData.syncMethod === 'Manual')) && (
+                {(step < 5 || (step === 5 && formData.syncMethod === 'Manual') || (step === 6)) && (
                   <button
                     onClick={nextStep}
                     disabled={(step === 1 && (!formData.name || !formData.country)) || (step === 3 && !agreedToTerms)}

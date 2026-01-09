@@ -4,15 +4,18 @@ import {
   Grid, Square, Layout, Rows, Search, RefreshCw, 
   Maximize2, Minimize2, Sidebar as SidebarIcon, X, 
   Clock, MousePointer2, Link2, Link2Off, List, Star,
-  ZoomIn, ZoomOut, SlidersHorizontal, ArrowLeftRight, ArrowUpDown
+  ZoomIn, ZoomOut, SlidersHorizontal, ArrowLeftRight, ArrowUpDown,
+  Lock, ChevronDown, Plus, Check
 } from 'lucide-react';
 import TradingViewWidget from './TradingViewWidget';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import { UserProfile } from '../types';
 
 interface ChartGridProps {
   isDarkMode: boolean;
   isFocusMode?: boolean;
   onToggleFocus?: () => void;
+  userProfile: UserProfile;
 }
 
 const WATCHLISTS = {
@@ -51,7 +54,10 @@ interface LayoutSettings {
     minHeight: number;
 }
 
-const ChartGrid: React.FC<ChartGridProps> = ({ isDarkMode, isFocusMode = false, onToggleFocus }) => {
+const ChartGrid: React.FC<ChartGridProps> = ({ isDarkMode, isFocusMode = false, onToggleFocus, userProfile }) => {
+  const isPremium = userProfile?.plan === 'PREMIUM (MASTERS)';
+  const isFree = userProfile?.plan === 'FREE TIER (JOURNALER)';
+
   const [layout, setLayout] = useLocalStorage<'single' | 'split-v' | 'split-h' | 'quad' | 'focus-main'>('jfx_chart_layout', 'split-v');
   const [charts, setCharts] = useLocalStorage('jfx_chart_config', [
       { id: 1, symbol: "FX:EURUSD", interval: "15" },  
@@ -75,6 +81,9 @@ const ChartGrid: React.FC<ChartGridProps> = ({ isDarkMode, isFocusMode = false, 
   
   const [starredSymbols, setStarredSymbols] = useLocalStorage<string[]>('jfx_starred_symbols', []);
 
+  // Multiple Layouts State (Premium Only)
+  const [savedLayouts, setSavedLayouts] = useLocalStorage<any[]>('jfx_saved_layouts', []);
+  const [currentLayoutName, setCurrentLayoutName] = useState('Default Layout');
   const settingsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

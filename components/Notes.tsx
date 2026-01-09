@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   X, Save, Plus, Search, Pin, ChevronLeft, Trash2, Clock, Hash, Tag,
-  Flag, ListChecks, Target, Link
+  Flag, ListChecks, Target, Link, Lock, ArrowRight
 } from 'lucide-react';
-import { Note, Goal } from '../types';
+import { Note, Goal, UserProfile } from '../types';
 import ConfirmationModal from './ConfirmationModal';
 import RichTextEditor, { ToolbarButton } from './RichTextEditor';
 
@@ -15,6 +15,8 @@ interface NotesProps {
   onUpdateNote: (note: Note) => Promise<void>;
   onDeleteNote: (id: string) => Promise<void>;
   onUpdateGoal: (goal: Goal) => Promise<void>;
+  userProfile?: UserProfile | null;
+  onViewChange: (view: string) => void;
 }
 
 const COLORS = [
@@ -26,7 +28,7 @@ const COLORS = [
   { id: 'yellow', bg: 'bg-amber-50', darkBg: 'bg-amber-900/20', border: 'border-amber-500/30' },
 ];
 
-const Notes: React.FC<NotesProps> = ({ isDarkMode, notes, goals, onAddNote, onUpdateNote, onDeleteNote, onUpdateGoal }) => {
+const Notes: React.FC<NotesProps> = ({ isDarkMode, notes, goals, onAddNote, onUpdateNote, onDeleteNote, onUpdateGoal, userProfile, onViewChange }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -40,11 +42,16 @@ const Notes: React.FC<NotesProps> = ({ isDarkMode, notes, goals, onAddNote, onUp
   const [saveStatus, setSaveStatus] = useState<'Saved' | 'Unsaved' | 'Saving'>('Saved');
   const [showGoalLinker, setShowGoalLinker] = useState(false);
 
+  // Robust free tier check
+  const isFreeTier = !userProfile || userProfile.plan === 'FREE TIER (JOURNALER)';
+
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
     description: string;
     onConfirm: () => void;
+    showCancel?: boolean;
+    confirmText?: string;
   }>({
     isOpen: false,
     title: '',
@@ -72,6 +79,22 @@ const Notes: React.FC<NotesProps> = ({ isDarkMode, notes, goals, onAddNote, onUp
   }, []);
 
   const createNewNote = async () => {
+    // Enforce Free Tier Limit: Max 1 saved note
+    if (isFreeTier && notes.length >= 1) {
+      setConfirmModal({
+        isOpen: true,
+        title: 'Notebook Limit Reached',
+        description: 'The FREE TIER is limited to 1 saved note. Please upgrade to PRO or PREMIUM to create unlimited notes.',
+        confirmText: 'Upgrade Now',
+        showCancel: true,
+        onConfirm: () => {
+          onViewChange('settings');
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        }
+      });
+      return;
+    }
+
     const newNote: Note = {
       id: '',
       title: '',
@@ -196,7 +219,16 @@ const Notes: React.FC<NotesProps> = ({ isDarkMode, notes, goals, onAddNote, onUp
         <div className="p-5 border-b shrink-0 space-y-4 border-dashed border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center justify-between">
             <h2 className="font-bold text-base flex items-center gap-2"><Save size={18} className="text-indigo-500" /> My Notes</h2>
-            <button onClick={createNewNote} className="p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-all shadow-lg shadow-indigo-500/20 active:scale-95"><Plus size={18} /></button>
+            <button 
+              onClick={createNewNote} 
+              className={`p-2 rounded-lg transition-all shadow-lg active:scale-95 flex items-center gap-2 ${
+                isFreeTier && notes.length >= 1 
+                ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed shadow-none border border-zinc-200' 
+                : 'bg-indigo-600 hover:bg-indigo-50 text-white shadow-indigo-500/20'
+              }`}
+            >
+              {isFreeTier && notes.length >= 1 ? <Lock size={16} /> : <Plus size={18} />}
+            </button>
           </div>
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 opacity-50" />
@@ -225,6 +257,30 @@ const Notes: React.FC<NotesProps> = ({ isDarkMode, notes, goals, onAddNote, onUp
             </div>
           ))}
         </div>
+
+        {/* Upgrade CTA for Free Tier */}
+        {isFreeTier && notes.length >= 1 && (
+          <div className="p-4 mt-auto">
+            <button 
+              onClick={() => onViewChange('settings')}
+              className={`w-full p-4 rounded-2xl border border-dashed flex flex-col gap-2 text-left transition-all hover:border-indigo-500 group ${isDarkMode ? 'bg-indigo-500/5 border-zinc-800' : 'bg-indigo-50 border-indigo-200'}`}
+            >
+              <div className="flex items-center justify-between w-full">
+                <div className="p-1.5 rounded-lg bg-indigo-500 text-white shadow-lg shadow-indigo-500/20">
+                  <Lock size={14} />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500 opacity-60">Free Tier</span>
+              </div>
+              <div>
+                <h4 className="text-xs font-bold leading-tight">Unlock Unlimited Notes</h4>
+                <p className="text-[10px] opacity-50 mt-0.5">You've reached the 1-note limit. Upgrade to PRO to save more insights.</p>
+              </div>
+              <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-indigo-500 mt-1 group-hover:gap-2 transition-all">
+                Upgrade Now <ArrowRight size={12} />
+              </div>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Main Area */}
@@ -253,7 +309,7 @@ const Notes: React.FC<NotesProps> = ({ isDarkMode, notes, goals, onAddNote, onUp
         </header>
 
         <div className={`flex-1 overflow-y-auto custom-scrollbar relative`}>
-          <div className="max-w-3xl mx-auto py-12 px-8 min-h-full flex flex-col">
+          <div className="max-w-5xl mx-auto py-12 px-8 min-h-full flex flex-col">
             <input id="note-title-input" value={title} onChange={(e) => handleTitleChange(e.target.value)} placeholder="Note Title" className={`w-full text-4xl font-black bg-transparent outline-none mb-6 placeholder:opacity-20 ${isDarkMode ? 'text-zinc-100' : 'text-slate-900'}`} />
 
             <div className="flex flex-wrap items-center gap-2 mb-8">
@@ -319,8 +375,9 @@ const Notes: React.FC<NotesProps> = ({ isDarkMode, notes, goals, onAddNote, onUp
         onConfirm={confirmModal.onConfirm}
         onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
         isDarkMode={isDarkMode}
-        confirmText="Delete"
+        confirmText={confirmModal.confirmText || "Delete"}
         variant="danger"
+        showCancel={confirmModal.showCancel}
       />
     </div>
   );

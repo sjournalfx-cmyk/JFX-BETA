@@ -128,20 +128,20 @@ def main():
                 "account": account,
                 "openPositions": positions,
                 "trades": trades,
-                "isHeartbeat": True, # Flag to tell backend this is a live pulse
+                "isHeartbeat": True,
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
 
             try:
                 response = requests.post(args.url, json=payload, headers=headers, timeout=10)
                 if response.status_code == 200:
+                    data = response.json()
                     print(f"[{datetime.now().strftime('%H:%M:%S')}] Sync OK | Equity: {account['equity'] if account else 'N/A'}")
                 else:
                     print(f"[{datetime.now().strftime('%H:%M:%S')}] Sync Error: {response.status_code} - {response.text}")
             except requests.exceptions.RequestException as e:
-                # Gracefully handle network errors (timeouts, DNS, etc)
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] Network Check: Connection unstable... Retrying in 5s")
-                time.sleep(3) # Add extra delay on error
+                time.sleep(3)
             except Exception as e:
                 print(f"Request failed: {e}")
 

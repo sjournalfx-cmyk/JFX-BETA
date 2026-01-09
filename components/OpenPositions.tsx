@@ -1,6 +1,5 @@
-
 import React, { useEffect, useState } from 'react';
-import { ArrowUpRight, ArrowDownRight, Minus, Target, Zap, Activity } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
 
 interface OpenPosition {
     ticket: number;
@@ -49,72 +48,84 @@ const OpenPositions: React.FC<OpenPositionsProps> = ({ positions, isDarkMode, cu
     }
 
     return (
-        <div className="space-y-3 overflow-auto custom-scrollbar pr-2 max-h-[400px]">
-            <style>{`
-                @keyframes data-pulse {
-                    0% { opacity: 1; filter: brightness(1); }
-                    50% { opacity: 0.7; filter: brightness(1.5); border-color: #3b82f6; }
-                    100% { opacity: 1; filter: brightness(1); }
-                }
-                .data-refresh {
-                    animation: data-pulse 0.4s ease-out;
-                }
-            `}</style>
-            {positions.map((pos) => (
-                <div
-                    key={pos.ticket}
-                    className={`p-4 rounded-2xl border-2 transition-all hover:scale-[1.01] ${isRefreshing ? 'data-refresh' : ''} ${isDarkMode
-                            ? 'bg-[#18181b] border-[#27272a] hover:border-zinc-700'
-                            : 'bg-white border-slate-100 shadow-sm hover:shadow-md'
-                        }`}
-                >
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${pos.type === 'Buy'
-                                    ? 'bg-emerald-500/10 text-emerald-500'
-                                    : 'bg-rose-500/10 text-rose-500'
-                                }`}>
-                                {pos.type === 'Buy' ? <ArrowUpRight size={20} /> : <ArrowDownRight size={20} />}
-                            </div>
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <span className="font-black text-sm tracking-tight">{pos.symbol}</span>
-                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-widest ${pos.type === 'Buy'
-                                            ? 'bg-emerald-500/10 text-emerald-500'
-                                            : 'bg-rose-500/10 text-rose-500'
-                                        }`}>
-                                        {pos.type}
-                                    </span>
-                                </div>
-                                <div className="text-[10px] font-mono opacity-40">#{pos.ticket} • {(pos.lots || 0).toFixed(2)} Lots</div>
-                            </div>
-                        </div>
-                        <div className="text-right">
-                            <div className={`text-lg font-black font-mono leading-none ${pos.profit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                {pos.profit >= 0 ? '+' : ''}{currencySymbol}{(pos.profit || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </div>
-                            <div className="text-[10px] font-bold opacity-40 uppercase tracking-widest mt-1">Floating P/L</div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4 pt-3 border-t border-zinc-800/50">
-                        <div>
-                            <div className="text-[9px] font-bold opacity-40 uppercase tracking-widest mb-1">Entry</div>
-                            <div className="text-xs font-mono font-bold">{(pos.openPrice || 0).toFixed(5)}</div>
-                        </div>
-                        <div>
-                            <div className="text-[9px] font-bold opacity-40 uppercase tracking-widest mb-1">Current</div>
-                            <div className="text-xs font-mono font-bold">{(pos.currentPrice || 0).toFixed(5)}</div>
-                        </div>
-                        <div>
-                            <div className="text-[9px] font-bold opacity-40 uppercase tracking-widest mb-1">SL / TP</div>
-                            <div className="text-xs font-mono font-bold">
-                                {pos.sl > 0 ? pos.sl.toFixed(5) : '---'} / {pos.tp > 0 ? pos.tp.toFixed(5) : '---'}
-                            </div>
-                        </div>
-                    </div>
+        <div className="relative h-full flex flex-col">
+            <div className="flex items-center justify-between mb-3 px-1">
+                <div className="text-[10px] font-black uppercase tracking-widest opacity-40">
+                    {positions.length} Active {positions.length === 1 ? 'Position' : 'Positions'}
                 </div>
-            ))}
+            </div>
+
+            <div className="space-y-3 overflow-auto custom-scrollbar pr-2 flex-1 max-h-[400px]">
+                <style>{`
+                    @keyframes data-pulse {
+                        0% { opacity: 1; filter: brightness(1); }
+                        50% { opacity: 0.7; filter: brightness(1.5); border-color: #3b82f6; }
+                        100% { opacity: 1; filter: brightness(1); }
+                    }
+                    .data-refresh {
+                        animation: data-pulse 0.4s ease-out;
+                    }
+                `}</style>
+                {positions.map((pos) => {
+                    return (
+                        <div
+                            key={pos.ticket}
+                            className={`p-4 rounded-2xl border-2 transition-all hover:scale-[1.01] ${isRefreshing ? 'data-refresh' : ''} ${isDarkMode
+                                ? 'bg-[#18181b] border-[#27272a] hover:border-zinc-700'
+                                : 'bg-white border-slate-100 shadow-sm hover:shadow-md'
+                                }`}
+                        >
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${pos.type === 'Buy'
+                                        ? 'bg-emerald-500/10 text-emerald-500'
+                                        : 'bg-rose-500/10 text-rose-500'
+                                        }`}>
+                                        {pos.type === 'Buy' ? <ArrowUpRight size={20} /> : <ArrowDownRight size={20} />}
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-black text-sm tracking-tight">{pos.symbol}</span>
+                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-widest ${pos.type === 'Buy'
+                                                ? 'bg-emerald-500/10 text-emerald-500'
+                                                : 'bg-rose-500/10 text-rose-500'
+                                                }`}>
+                                                {pos.type}
+                                            </span>
+                                        </div>
+                                        <div className="text-[10px] font-mono opacity-40">#{pos.ticket} • {(pos.lots || 0).toFixed(2)} Lots</div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <div className="text-right">
+                                        <div className={`text-lg font-black font-mono leading-none ${pos.profit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                            {pos.profit >= 0 ? '+' : ''}{currencySymbol}{(pos.profit || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </div>
+                                        <div className="text-[10px] font-bold opacity-40 uppercase tracking-widest mt-1">Floating P/L</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-4 pt-3 border-t border-zinc-800/50">
+                                <div>
+                                    <div className="text-[9px] font-bold opacity-40 uppercase tracking-widest mb-1">Entry</div>
+                                    <div className="text-xs font-mono font-bold">{(pos.openPrice || 0).toFixed(5)}</div>
+                                </div>
+                                <div>
+                                    <div className="text-[9px] font-bold opacity-40 uppercase tracking-widest mb-1">Current</div>
+                                    <div className="text-xs font-mono font-bold">{(pos.currentPrice || 0).toFixed(5)}</div>
+                                </div>
+                                <div>
+                                    <div className="text-[9px] font-bold opacity-40 uppercase tracking-widest mb-1">SL / TP</div>
+                                    <div className="text-xs font-mono font-bold">
+                                        {pos.sl > 0 ? pos.sl.toFixed(5) : '---'} / {pos.tp > 0 ? pos.tp.toFixed(5) : '---'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 };

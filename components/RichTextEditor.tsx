@@ -338,7 +338,6 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
       {editor && (
         <BubbleMenu
           editor={editor}
-          tippyOptions={{ duration: 100 }}
           shouldShow={({ editor, state }) => {
             return !editor.isActive('table') && !state.selection.empty;
           }}

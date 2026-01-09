@@ -24,10 +24,9 @@ export const APP_CONSTANTS = {
     GOALS: 'goals',
   },
   PLANS: {
-    FREE: 'Free Plan',
-    HOBBY: 'Hobby',
-    STANDARD: 'Standard',
-    GROWTH: 'Growth',
+    FREE: 'FREE TIER (JOURNALER)',
+    HOBBY: 'PRO TIER (ANALYSTS)',
+    STANDARD: 'PREMIUM (MASTERS)',
   },
   CURRENCIES: [
     { code: 'USD', symbol: '$', name: 'US Dollar' },

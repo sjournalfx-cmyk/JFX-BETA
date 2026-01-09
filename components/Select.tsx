@@ -16,6 +16,7 @@ interface SelectProps {
   isDarkMode: boolean;
   className?: string;
   error?: string;
+  disabled?: boolean;
 }
 
 const Label = ({ children, className = "" }: { children?: React.ReactNode, className?: string }) => (
@@ -33,7 +34,8 @@ export const Select: React.FC<SelectProps> = ({
   placeholder = "Select...", 
   isDarkMode, 
   className = "",
-  error
+  error,
+  disabled = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -52,12 +54,13 @@ export const Select: React.FC<SelectProps> = ({
   const displayLabel = selectedOption ? selectedOption.label : value || placeholder;
 
   return (
-    <div className={`relative group ${className}`} ref={containerRef}>
+    <div className={`relative group ${className} ${disabled ? 'pointer-events-none opacity-50' : ''}`} ref={containerRef}>
       {label && <Label>{label}</Label>}
       
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        disabled={disabled}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
         className={`w-full text-left ${Icon ? 'pl-11' : 'pl-4'} pr-10 py-3.5 rounded-lg border outline-none font-medium transition-all text-sm flex items-center justify-between relative
           ${isOpen ? 'ring-2 ring-violet-500/20 border-violet-500' : ''}
           ${error ? 'border-rose-500 ring-rose-500/10' : ''}
@@ -65,6 +68,7 @@ export const Select: React.FC<SelectProps> = ({
             ? 'bg-[#18181b] border-[#27272a] text-zinc-100 hover:bg-[#27272a]' 
             : 'bg-white border-slate-200 text-slate-900 hover:bg-slate-50 shadow-sm'
           }
+          ${disabled ? 'cursor-not-allowed bg-zinc-100 dark:bg-zinc-900/50' : ''}
         `}
       >
         {Icon && (

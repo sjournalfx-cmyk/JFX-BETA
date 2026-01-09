@@ -424,7 +424,7 @@ export const dataService = {
     const { data, error } = await supabase
       .from('ea_sessions')
       .select('*')
-      .eq('syncKey', syncKey)
+      .eq('sync_key', syncKey)
       .maybeSingle();
 
     if (error) throw error;

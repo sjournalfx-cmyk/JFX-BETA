@@ -122,33 +122,65 @@ const CostCalc = ({ isDarkMode, currencySymbol }: { isDarkMode: boolean, currenc
 
 const GrowthCalc = ({ isDarkMode, currencySymbol }: { isDarkMode: boolean, currencySymbol: string }) => {
     const [startBalance, setStartBalance] = useState(5000);
-    const [monthlyReturn, setMonthlyReturn] = useState(5);
-    const [months, setMonths] = useState(12);
-    const data = [];
-    let current = startBalance;
-    for (let i = 0; i <= months; i++) { data.push(current); current = current * (1 + (monthlyReturn / 100)); }
+    const [periodReturn, setPeriodReturn] = useState(5);
+    const [duration, setDuration] = useState(12);
+    const [timeframe, setTimeframe] = useState('Months');
+
+    const data = useMemo(() => {
+        const results = [];
+        let current = Number(startBalance);
+        const count = Math.min(Number(duration), 100); // Limit bars for performance
+        for (let i = 0; i <= count; i++) {
+            results.push(current);
+            current = current * (1 + (Number(periodReturn) / 100));
+        }
+        return results;
+    }, [startBalance, periodReturn, duration]);
+
     const final = data[data.length - 1];
     const profit = final - startBalance;
+
+    const periodLabel = timeframe === 'Days' ? 'Daily' : 
+                      timeframe === 'Years' ? 'Yearly' :
+                      timeframe === 'Months' ? 'Monthly' : 'Weekly';
+
+    const getTimeframeLabel = (idx: number) => {
+        const unit = timeframe.slice(0, -1);
+        return `${unit} ${idx}`;
+    };
+
     return (
         <div className="space-y-6 animate-in slide-in-from-right-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <InputGroup label="Starting Balance" value={startBalance} onChange={setStartBalance} prefix={currencySymbol} isDarkMode={isDarkMode} />
-                <InputGroup label="Monthly Return" value={monthlyReturn} onChange={setMonthlyReturn} suffix="%" isDarkMode={isDarkMode} />
-                <InputGroup label="Duration" value={months} onChange={setMonths} suffix="Months" isDarkMode={isDarkMode} />
+                <InputGroup label={`${periodLabel} Return`} value={periodReturn} onChange={setPeriodReturn} suffix="%" isDarkMode={isDarkMode} />
+                <InputGroup label="Duration" value={duration} onChange={setDuration} isDarkMode={isDarkMode} />
+                <Select
+                    label="Timeframe"
+                    value={timeframe}
+                    onChange={setTimeframe}
+                    isDarkMode={isDarkMode}
+                    options={[
+                        { value: 'Years', label: 'Years' },
+                        { value: 'Months', label: 'Months' },
+                        { value: 'Weeks', label: 'Weeks' },
+                        { value: 'Days', label: 'Days' },
+                    ]}
+                />
             </div>
             <div className="h-32 flex items-end gap-1 pb-4 border-b border-dashed border-gray-500/20">
                 {data.map((val, i) => {
-                    const height = (val / final) * 100;
+                    const height = (val / (final || 1)) * 100;
                     return (
-                        <div key={i} className="flex-1 bg-amber-500/20 hover:bg-amber-500 rounded-t-sm transition-all relative group" style={{ height: `${height}%` }}>
-                            <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-10">Mo {i}: {currencySymbol}{Math.round(val).toLocaleString()}</div>
+                        <div key={i} className="flex-1 bg-amber-500/20 hover:bg-amber-500 rounded-t-sm transition-all relative group" style={{ height: `${Math.max(2, height)}%` }}>
+                            <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap z-10">{getTimeframeLabel(i)}: {currencySymbol}{Math.round(val).toLocaleString()}</div>
                         </div>
                     )
                 })}
             </div>
             <div className="grid grid-cols-2 gap-4">
                 <ResultCard label="Projected Balance" value={`${currencySymbol}${Math.round(final).toLocaleString()}`} isDarkMode={isDarkMode} colorClass="text-amber-500" />
-                <ResultCard label="Total Profit" value={`+${currencySymbol}${Math.round(profit).toLocaleString()}`} subValue={`${((profit / startBalance) * 100).toFixed(0)}% Gain`} isDarkMode={isDarkMode} />
+                <ResultCard label="Total Profit" value={`+${currencySymbol}${Math.round(profit).toLocaleString()}`} subValue={`${((profit / (startBalance || 1)) * 100).toFixed(0)}% Gain`} isDarkMode={isDarkMode} />
             </div>
         </div>
     )

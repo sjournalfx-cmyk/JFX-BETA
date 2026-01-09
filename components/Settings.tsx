@@ -6,7 +6,7 @@ import {
   ChevronRight, ArrowRight, CheckCircle2,
   Lock, Mail, Smartphone, ExternalLink,
   Flame, Award, Briefcase, Camera, Palette,
-  Sun, Moon, Copy, Check
+  Sun, Moon, Copy, Check, Crown
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { APP_CONSTANTS } from '../lib/constants';
@@ -45,12 +45,26 @@ const premiumAvatars = [
 interface SettingsProps {
   isDarkMode: boolean;
   userProfile: UserProfile;
+  userEmail?: string;
   onUpdateProfile: (profile: UserProfile) => Promise<void>;
   onLogout: () => void;
   onToggleTheme: () => void;
+  tradesThisMonth?: number;
+  totalNotes?: number;
+  totalImages?: number;
 }
 
-const Settings: React.FC<SettingsProps> = ({ isDarkMode, userProfile, onUpdateProfile, onLogout, onToggleTheme }) => {
+const Settings: React.FC<SettingsProps> = ({ 
+  isDarkMode, 
+  userProfile, 
+  userEmail,
+  onUpdateProfile, 
+  onLogout, 
+  onToggleTheme,
+  tradesThisMonth = 0,
+  totalNotes = 0,
+  totalImages = 0
+}) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'account' | 'appearance' | 'billing' | 'security'>('profile');
   const [formData, setFormData] = useState<UserProfile>({ ...userProfile });
   const [isSaving, setIsSaving] = useState(false);
@@ -196,56 +210,62 @@ const Settings: React.FC<SettingsProps> = ({ isDarkMode, userProfile, onUpdatePr
                   <div className="xl:col-span-7 space-y-6">
                     <h3 className="text-lg font-bold mb-2">Choose Your Avatar</h3>
 
-                    <div className="space-y-4">
-                      <h4 className="text-xs font-bold uppercase tracking-widest opacity-60">Free Tier (Journaler Bots)</h4>
-                      <div className="grid grid-cols-6 gap-4">
-                        {freeAvatars.map((url, i) => (
-                          <button
-                            key={i}
-                            onClick={() => setFormData({ ...formData, avatarUrl: url })}
-                            className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all hover:scale-105 ${formData.avatarUrl === url ? 'border-[#FF4F01] ring-2 ring-[#FF4F01]/20' : 'border-transparent opacity-80 hover:opacity-100'}`}
-                          >
-                            <img src={url} alt="Avatar" className="w-full h-full object-cover" />
-                          </button>
-                        ))}
+                    {formData.plan === 'FREE TIER (JOURNALER)' && (
+                      <div className="space-y-4">
+                        <h4 className="text-xs font-bold uppercase tracking-widest opacity-60">Free Tier (Journaler Bots)</h4>
+                        <div className="grid grid-cols-6 gap-4">
+                          {freeAvatars.map((url, i) => (
+                            <button
+                              key={i}
+                              onClick={() => setFormData({ ...formData, avatarUrl: url })}
+                              className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all hover:scale-105 ${formData.avatarUrl === url ? 'border-[#FF4F01] ring-2 ring-[#FF4F01]/20' : 'border-transparent opacity-80 hover:opacity-100'}`}
+                            >
+                              <img src={url} alt="Avatar" className="w-full h-full object-cover" />
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-xs font-bold uppercase tracking-widest opacity-60">Pro Tier (AI Analysts)</h4>
-                        <div className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-500 text-[10px] font-black uppercase">Pro</div>
+                    {formData.plan === 'PRO TIER (ANALYSTS)' && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-bold uppercase tracking-widest opacity-60">Pro Tier (Analysts)</h4>
+                          <div className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-500 text-[10px] font-black uppercase">Pro</div>
+                        </div>
+                        <div className="grid grid-cols-6 gap-4">
+                          {proAvatars.map((url, i) => (
+                            <button
+                              key={i}
+                              onClick={() => setFormData({ ...formData, avatarUrl: url })}
+                              className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all hover:scale-105 ${formData.avatarUrl === url ? 'border-[#FF4F01] ring-2 ring-[#FF4F01]/20' : 'border-transparent opacity-80 hover:opacity-100'}`}
+                            >
+                              <img src={url} alt="Avatar" className="w-full h-full object-cover" />
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                      <div className="grid grid-cols-6 gap-4">
-                        {proAvatars.map((url, i) => (
-                          <button
-                            key={i}
-                            onClick={() => setFormData({ ...formData, avatarUrl: url })}
-                            className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all hover:scale-105 ${formData.avatarUrl === url ? 'border-[#FF4F01] ring-2 ring-[#FF4F01]/20' : 'border-transparent opacity-80 hover:opacity-100'}`}
-                          >
-                            <img src={url} alt="Avatar" className="w-full h-full object-cover" />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                    )}
 
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-xs font-bold uppercase tracking-widest opacity-60">Premium Tier (Elite Masters)</h4>
-                        <div className="px-2 py-0.5 rounded bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[10px] font-black uppercase">Elite</div>
+                    {formData.plan === 'PREMIUM (MASTERS)' && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-bold uppercase tracking-widest opacity-60">Premium Tier (Elite Masters)</h4>
+                          <div className="px-2 py-0.5 rounded bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[10px] font-black uppercase">Elite</div>
+                        </div>
+                        <div className="grid grid-cols-6 gap-4">
+                          {premiumAvatars.map((url, i) => (
+                            <button
+                              key={i}
+                              onClick={() => setFormData({ ...formData, avatarUrl: url })}
+                              className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all hover:scale-105 ${formData.avatarUrl === url ? 'border-[#FF4F01] ring-2 ring-[#FF4F01]/20' : 'border-transparent opacity-80 hover:opacity-100'}`}
+                            >
+                              <img src={url} alt="Avatar" className="w-full h-full object-cover" />
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                      <div className="grid grid-cols-6 gap-4">
-                        {premiumAvatars.map((url, i) => (
-                          <button
-                            key={i}
-                            onClick={() => setFormData({ ...formData, avatarUrl: url })}
-                            className={`aspect-square rounded-2xl overflow-hidden border-2 transition-all hover:scale-105 ${formData.avatarUrl === url ? 'border-[#FF4F01] ring-2 ring-[#FF4F01]/20' : 'border-transparent opacity-80 hover:opacity-100'}`}
-                          >
-                            <img src={url} alt="Avatar" className="w-full h-full object-cover" />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -375,10 +395,11 @@ const Settings: React.FC<SettingsProps> = ({ isDarkMode, userProfile, onUpdatePr
                     <div>
                       <h4 className="text-xs font-black uppercase tracking-[0.2em] mb-4 opacity-60">Current Plan</h4>
                       <h3 className="text-4xl font-black mb-2">{formData.plan}</h3>
-                      <p className="text-sm font-medium opacity-60 mb-8">Unlimited trades, AI insights, and EA sync.</p>
-                      <button className="px-6 py-3 bg-white text-black rounded-xl text-sm font-black shadow-xl hover:scale-105 transition-transform">
-                        Manage Subscription
-                      </button>
+                      <p className="text-sm font-medium opacity-60 mb-8">
+                        {formData.plan === 'FREE TIER (JOURNALER)' && 'Lightweight journaling for beginners.'}
+                        {formData.plan === 'PRO TIER (ANALYSTS)' && 'Data-driven automated trading.'}
+                        {formData.plan === 'PREMIUM (MASTERS)' && 'Direct integration for professionals.'}
+                      </p>
                     </div>
                     <div className="p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20">
                       <Award size={32} className="text-[#FF4F01]" />
@@ -386,18 +407,102 @@ const Settings: React.FC<SettingsProps> = ({ isDarkMode, userProfile, onUpdatePr
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                {/* Detailed Usage Stats */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-zinc-900/50 border-zinc-800' : 'bg-slate-50 border-slate-100'}`}>
-                    <h5 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2">Next Billing Date</h5>
-                    <p className="font-bold">Feb 3, 2026</p>
+                    <div className="flex justify-between items-center mb-4">
+                      <h5 className="text-[10px] font-black uppercase tracking-widest opacity-40">Monthly Trades</h5>
+                      <span className="text-[10px] font-bold text-indigo-500">
+                        {formData.plan === 'PREMIUM (MASTERS)' ? 'Unlimited' : `${tradesThisMonth} / ${formData.plan === 'PRO TIER (ANALYSTS)' ? 500 : 50}`}
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full bg-black/10 dark:bg-white/5 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-indigo-500 rounded-full transition-all duration-1000" 
+                        style={{ width: `${formData.plan === 'PREMIUM (MASTERS)' ? 0 : Math.min(100, (tradesThisMonth / (formData.plan === 'PRO TIER (ANALYSTS)' ? 500 : 50)) * 100)}%` }} 
+                      />
+                    </div>
                   </div>
                   <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-zinc-900/50 border-zinc-800' : 'bg-slate-50 border-slate-100'}`}>
-                    <h5 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2">Payment Method</h5>
-                    <p className="font-bold flex items-center gap-2">•••• 4242 <CreditCard size={14} /></p>
+                    <div className="flex justify-between items-center mb-4">
+                      <h5 className="text-[10px] font-black uppercase tracking-widest opacity-40">Notebook Slots</h5>
+                      <span className="text-[10px] font-bold text-purple-500">
+                        {formData.plan === 'FREE TIER (JOURNALER)' ? `${totalNotes} / 1` : 'Unlimited'}
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full bg-black/10 dark:bg-white/5 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-purple-500 rounded-full transition-all duration-1000" 
+                        style={{ width: `${formData.plan === 'FREE TIER (JOURNALER)' ? Math.min(100, (totalNotes / 1) * 100) : 0}%` }} 
+                      />
+                    </div>
+                  </div>
+                  <div className={`p-6 rounded-2xl border ${isDarkMode ? 'bg-zinc-900/50 border-zinc-800' : 'bg-slate-50 border-slate-100'}`}>
+                    <div className="flex justify-between items-center mb-4">
+                      <h5 className="text-[10px] font-black uppercase tracking-widest opacity-40">Images Used</h5>
+                      <span className="text-[10px] font-bold text-orange-500">
+                        {formData.plan === 'FREE TIER (JOURNALER)' ? '0 / 0' : (formData.plan === 'PREMIUM (MASTERS)' ? 'Unlimited' : `${totalImages} / 1000`)}
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full bg-black/10 dark:bg-white/5 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-orange-500 rounded-full transition-all duration-1000" 
+                        style={{ width: `${formData.plan === 'PREMIUM (MASTERS)' ? 0 : (formData.plan === 'FREE TIER (JOURNALER)' ? 0 : Math.min(100, (totalImages / 1000) * 100))}%` }} 
+                      />
+                    </div>
                   </div>
                 </div>
+
+                <div className="grid grid-cols-1 gap-6">
+                  <h4 className="text-xs font-black uppercase tracking-widest opacity-40">Available Plans</h4>
+                  {[
+                    { 
+                      id: 'FREE TIER (JOURNALER)', 
+                      price: '0', 
+                      desc: 'Manual trade logging & daily bias.',
+                      features: ['50 trades / mo', 'Max 1 note', 'Manual Entry']
+                    },
+                    { 
+                      id: 'PRO TIER (ANALYSTS)', 
+                      price: '4.99', 
+                      desc: 'EA Sync technology & goals.',
+                      features: ['500 trades / mo', '1 Chart Layout', 'Desktop Bridge']
+                    },
+                    { 
+                      id: 'PREMIUM (MASTERS)', 
+                      price: '14.99', 
+                      desc: 'Direct broker sync & AI insights.',
+                      features: ['Unlimited trades', 'Direct API Sync', 'Voice Notes']
+                    }
+                  ].map((plan) => (
+                    <div key={plan.id} className={`p-6 rounded-2xl border flex items-center justify-between transition-all ${formData.plan === plan.id ? 'border-[#FF4F01] bg-[#FF4F01]/5' : isDarkMode ? 'bg-zinc-900/50 border-zinc-800' : 'bg-slate-50 border-slate-100'}`}>
+                      <div className="flex gap-4 items-center">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${formData.plan === plan.id ? 'bg-[#FF4F01] text-white' : 'bg-zinc-800 text-zinc-400'}`}>
+                          {plan.id === 'PREMIUM (MASTERS)' ? <Crown size={20} /> : <Zap size={20} />}
+                        </div>
+                        <div>
+                          <h5 className="font-bold text-sm">{plan.id}</h5>
+                          <p className="text-xs opacity-50">{plan.desc}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-6">
+                        <div className="text-right">
+                          <p className="text-lg font-black">${plan.price}</p>
+                          <p className="text-[10px] font-bold uppercase opacity-40">/month</p>
+                        </div>
+                        <button 
+                          onClick={() => setFormData({ ...formData, plan: plan.id })}
+                          disabled={formData.plan === plan.id}
+                          className={`px-6 py-2 rounded-xl text-xs font-black transition-all ${formData.plan === plan.id ? 'bg-zinc-800 text-zinc-500 cursor-default' : 'bg-[#FF4F01] text-white hover:scale-105 shadow-lg shadow-[#FF4F01]/20'}`}
+                        >
+                          {formData.plan === plan.id ? 'Active' : 'Switch'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            )}
+            ) }
 
             {activeTab === 'security' && (
               <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -407,7 +512,7 @@ const Settings: React.FC<SettingsProps> = ({ isDarkMode, userProfile, onUpdatePr
                       <div className="p-3 bg-indigo-500/10 text-indigo-500 rounded-xl"><Mail size={20} /></div>
                       <div>
                         <p className="text-sm font-bold">Email Authentication</p>
-                        <p className="text-xs opacity-50">Verified: phemelo@example.com</p>
+                        <p className="text-xs opacity-50">Verified: {userEmail || 'trader@journalfx.com'}</p>
                       </div>
                     </div>
                     <button className="text-[10px] font-black uppercase underline">Change</button>

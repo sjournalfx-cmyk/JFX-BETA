@@ -5,7 +5,7 @@ import {
     Target, BarChart3, Award, AlertOctagon,
     ArrowLeftRight, GitCompare, MoreVertical, Star, Coins,
     LayoutDashboard, LineChart, ShieldAlert, X, HelpCircle, GripVertical,
-    ArrowRightLeft, Crown, Flame, Snowflake
+    ArrowRightLeft, Crown, Flame, Snowflake, Lock
 } from 'lucide-react';
 import {
     DndContext,
@@ -31,6 +31,7 @@ interface AnalyticsProps {
     isDarkMode: boolean;
     trades: Trade[];
     userProfile: UserProfile;
+    onViewChange: (view: string) => void;
     eaSession?: any;
 }
 
@@ -232,7 +233,7 @@ const ComparisonView = ({ trades = [], isDarkMode, currencySymbol = '$' }: { tra
                         isWinner: {
                             netProfit: statsA.netProfit > statsB.netProfit,
                             winRate: statsA.winRate > statsB.winRate,
-                            profitFactor: parseFloat(statsA.profitFactor) > parseFloat(statsB.profitFactor),
+                            profitFactor: statsA.profitFactor > statsB.profitFactor,
                             total: statsA.total > statsB.total
                         }
                     },
@@ -246,7 +247,7 @@ const ComparisonView = ({ trades = [], isDarkMode, currencySymbol = '$' }: { tra
                         isWinner: {
                             netProfit: statsB.netProfit > statsA.netProfit,
                             winRate: statsB.winRate > statsA.winRate,
-                            profitFactor: parseFloat(statsB.profitFactor) > parseFloat(statsA.profitFactor),
+                            profitFactor: statsB.profitFactor > statsA.profitFactor,
                             total: statsB.total > statsA.total
                         }
                     }
@@ -811,12 +812,6 @@ const EquityCurveWidget = ({ trades = [], equityData = [], isDarkMode, currencyS
                         <p className="text-[10px] uppercase font-bold tracking-widest opacity-40 mt-1.5">Account Balance Growth</p>
                     </div>
                 </div>
-                <div className="text-right">
-                    <span className={`text-2xl font-mono font-black ${totalReturn >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {totalReturn >= 0 ? '+' : '-'}{currencySymbol}{Math.abs(currentEquity).toLocaleString()}
-                    </span>
-                    <p className="text-[10px] font-bold opacity-30 uppercase tracking-tighter">Current Balance</p>
-                </div>
             </div>
             <div className="flex-1 relative mt-4">
                 {equityData && equityData.length > 1 ? (
@@ -1349,8 +1344,8 @@ const TiltScoreWidget = ({ trades = [], isDarkMode }: { trades: Trade[], isDarkM
 
     return (
         <div className={`p-8 rounded-[32px] border flex flex-col items-center justify-center text-center min-h-[350px] ${isDarkMode ? 'bg-[#0d1117] border-zinc-800' : 'bg-white border-slate-200 shadow-md'}`}>
-            <h3 className="text-xl font-bold tracking-tight mb-6">Discipline Score</h3>
-            <div className="relative w-48 h-48 mb-6">
+            <h3 className="text-xl font-bold tracking-tight mb-12">Discipline Score</h3>
+            <div className="relative w-64 h-64 mb-6">
                 <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
                     <circle cx="50" cy="50" r="45" fill="transparent" stroke={isDarkMode ? "#1a1a1f" : "#f1f5f9"} strokeWidth="8" />
                     <circle
@@ -1718,6 +1713,9 @@ const PLByPlanAdherenceWidget = ({ trades = [], isDarkMode, currencySymbol = '$'
 
 const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProfile, eaSession }) => {
     const [activeTab, setActiveTab] = useState<'overview' | 'growth' | 'discipline' | 'comparison'>('overview');
+    const isFreeTier = userProfile?.plan === 'FREE TIER (JOURNALER)';
+    const isProTier = userProfile?.plan === 'PRO TIER (ANALYSTS)';
+    const isPremiumTier = userProfile?.plan === 'PREMIUM (MASTERS)';
 
     // Widget Order State
     const [overviewOrder, setOverviewOrder] = useLocalStorage('analytics_overview_order', [
@@ -1826,6 +1824,25 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
 
     const renderWidget = (id: string) => {
         const currencySymbol = userProfile?.currencySymbol || '$';
+        
+        // Essential check for widgets - these are the only ones visible on FREE tier overview
+        const isEssential = ['winRate', 'profitFactor', 'grossProfit', 'grossLoss', 'equityCurve'].includes(id);
+        
+        if (isFreeTier && !isEssential && activeTab === 'overview') {
+            return (
+                <div className={`h-full p-6 rounded-[24px] border flex flex-col items-center justify-center text-center relative overflow-hidden ${isDarkMode ? 'bg-[#18181b] border-[#27272a]' : 'bg-white border-slate-200 shadow-md'}`}>
+                    <div className="absolute inset-0 bg-black/5 dark:bg-white/[0.02] backdrop-blur-[2px] z-10" />
+                    <div className="relative z-20 flex flex-col items-center gap-2">
+                        <div className="p-2 rounded-lg bg-[#FF4F01]/10 text-[#FF4F01]">
+                            <Lock size={16} />
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Pro Analytics</span>
+                        <p className="text-[9px] font-bold opacity-30 px-4">Upgrade to PRO or PREMIUM to unlock this insight.</p>
+                    </div>
+                </div>
+            );
+        }
+
         switch (id) {
             // Overview Widgets
             case 'winRate':
@@ -2047,6 +2064,32 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
         }
     }
 
+    const LockedView = ({ title, description }: { title: string, description: string }) => (
+        <div className={`flex-1 flex flex-col items-center justify-center p-12 text-center animate-in fade-in zoom-in duration-500`}>
+            <div className={`w-24 h-24 rounded-[32px] mb-8 flex items-center justify-center shadow-2xl relative ${isDarkMode ? 'bg-zinc-900' : 'bg-white'}`}>
+                <div className="absolute inset-0 bg-[#FF4F01]/10 rounded-[32px] animate-pulse" />
+                <Lock size={40} className="text-[#FF4F01] relative z-10" />
+            </div>
+            <h2 className="text-3xl font-black mb-4 uppercase tracking-tight">{title}</h2>
+            <p className={`text-sm max-w-md mx-auto mb-10 leading-relaxed ${isDarkMode ? 'text-zinc-500' : 'text-slate-500'}`}>
+                {description}
+            </p>
+            <div className="flex gap-4">
+                <button 
+                    onClick={() => setActiveTab('overview')}
+                    className={`px-8 py-3 rounded-xl font-bold text-sm transition-all border ${isDarkMode ? 'border-zinc-800 hover:bg-zinc-900 text-zinc-400' : 'border-zinc-200 hover:bg-zinc-50 text-zinc-600'}`}
+                >
+                    Back to Overview
+                </button>
+                <button 
+                    className="px-8 py-3 bg-[#FF4F01] text-white rounded-xl font-black text-sm shadow-xl shadow-[#FF4F01]/20 hover:scale-105 active:scale-95 transition-all"
+                >
+                    Upgrade to Unlock
+                </button>
+            </div>
+        </div>
+    );
+
     return (
         <div className={`w-full h-full overflow-y-auto custom-scrollbar p-6 lg:p-10 font-sans ${isDarkMode ? 'bg-[#050505] text-zinc-200' : 'bg-[#F8FAFC] text-slate-900'}`}>
             <header className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -2057,15 +2100,48 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
                 <div className={`flex p-1 gap-1 ${isDarkMode ? 'bg-[#121214] rounded-[20px] border border-[#1e1e22]' : 'bg-slate-100 rounded-[20px] border border-slate-200'}`}>
                     {tabs.map((tab) => {
                         const isActive = activeTab === tab.id;
+                        const isLocked = isFreeTier && tab.id !== 'overview';
                         return (
-                            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-3 px-5 py-2.5 rounded-[16px] text-xs font-black uppercase tracking-widest transition-all duration-300 ${isActive ? 'bg-indigo-600 text-white shadow-lg' : 'text-zinc-500 hover:text-indigo-500'}`}>
-                                <tab.icon size={16} strokeWidth={isActive ? 3 : 2} />
+                            <button 
+                                key={tab.id} 
+                                onClick={() => setActiveTab(tab.id)} 
+                                className={`flex items-center gap-3 px-5 py-2.5 rounded-[16px] text-xs font-black uppercase tracking-widest transition-all duration-300 relative group ${isActive ? 'bg-indigo-600 text-white shadow-lg' : 'text-zinc-500 hover:text-indigo-500'}`}
+                            >
+                                <div className="relative">
+                                    <tab.icon size={16} strokeWidth={isActive ? 3 : 2} />
+                                    {isLocked && (
+                                        <div className="absolute -top-1.5 -right-1.5 bg-[#FF4F01] rounded-full p-0.5 shadow-sm">
+                                            <Lock size={8} fill="white" className="text-white" />
+                                        </div>
+                                    )}
+                                </div>
                                 <span className="hidden sm:inline">{tab.label}</span>
                             </button>
                         );
                     })}
                 </div>
             </header>
+
+            {isFreeTier && activeTab === 'growth' && (
+                <LockedView 
+                    title="Growth Insights Locked" 
+                    description="Visualizing trade outcome distribution, pair-specific profitability, and detailed execution metrics requires a PRO or PREMIUM subscription." 
+                />
+            )}
+
+            {isFreeTier && activeTab === 'discipline' && (
+                <LockedView 
+                    title="Psychology Radar Locked" 
+                    description="Deep-dive into your Tilt Score, mindset performance radar, and plan adherence correlation metrics are reserved for our Elite traders." 
+                />
+            )}
+
+            {isFreeTier && activeTab === 'comparison' && (
+                <LockedView 
+                    title="Symbol Comparison Locked" 
+                    description="Side-by-side comparison of multiple trading instruments and comparative equity growth analysis is a PREMIUM feature." 
+                />
+            )}
 
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 {activeTab === 'overview' && (
@@ -2080,7 +2156,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
                     </SortableContext>
                 )}
 
-                {activeTab === 'growth' && (
+                {activeTab === 'growth' && !isFreeTier && (
                     <SortableContext items={growthOrder} strategy={rectSortingStrategy}>
                         <div className="animate-in fade-in duration-500 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 pb-20">
                             {growthOrder.map(id => (
@@ -2092,7 +2168,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
                     </SortableContext>
                 )}
 
-                {activeTab === 'discipline' && (
+                {activeTab === 'discipline' && !isFreeTier && (
                     <SortableContext items={disciplineOrder} strategy={rectSortingStrategy}>
                         <div className="animate-in fade-in duration-500 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 pb-20">
                             {disciplineOrder.map(id => (
@@ -2104,7 +2180,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
                     </SortableContext>
                 )}
 
-                {activeTab === 'comparison' && (
+                {activeTab === 'comparison' && !isFreeTier && (
                     <ComparisonView trades={trades} isDarkMode={isDarkMode} currencySymbol={userProfile?.currencySymbol || '$'} />
                 )}
             </DndContext>

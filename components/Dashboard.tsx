@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { ArrowUpRight, ArrowDownRight, Activity, TrendingUp, DollarSign, BarChart2, Zap, Coins, GripVertical, UserCircle, Wallet, Layout, Cpu, ArrowRight } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, Activity, TrendingUp, DollarSign, BarChart2, Zap, Coins, GripVertical, UserCircle, Wallet, Layout, Cpu, ArrowRight, Lock } from 'lucide-react';
 import {
     DndContext,
     closestCenter,
@@ -96,9 +96,6 @@ const EquityCurveWidget = ({ trades, equityData, isDarkMode, currencySymbol }: {
         <div className={`p-6 rounded-2xl border flex flex-col min-h-[250px] relative overflow-hidden ${isDarkMode ? 'bg-[#18181b] border-[#27272a]' : 'bg-white border-slate-100 shadow-md'}`}>
             <div className="flex justify-between items-start mb-4">
                 <h3 className="font-bold">Equity Curve</h3>
-                <span className={`text-[10px] font-bold uppercase tracking-widest ${equityData[equityData.length - 1] >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {equityData[equityData.length - 1] >= 0 ? '+' : ''}{currencySymbol}{Math.abs(equityData[equityData.length - 1] || 0).toLocaleString()}
-                </span>
             </div>
             <div className="flex-1 relative">
                 {equityData.length > 1 ? (
@@ -190,6 +187,9 @@ const DailyBiasWidget = ({ isDarkMode, dailyBias, onUpdateBias }: { isDarkMode: 
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ isDarkMode, trades, dailyBias, onUpdateBias, userProfile, onViewChange, eaSession }) => {
+    // Robust free tier check
+    const isFreeTier = !userProfile || userProfile.plan === 'FREE TIER (JOURNALER)';
+
     // Widgets State for Reordering
     const [widgetOrder, setWidgetOrder] = useLocalStorage('dashboard_widget_order', [
         'dailyBias',
@@ -215,10 +215,13 @@ const Dashboard: React.FC<DashboardProps> = ({ isDarkMode, trades, dailyBias, on
 
     // Calculate Stats
     const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0);
+    const isPro = userProfile.plan === 'PRO TIER (ANALYSTS)';
+    
     // If EA Session exists, use bridge equity as the source of truth for current balance
-    const currentBalance = eaSession?.data?.account?.equity !== undefined 
-        ? eaSession.data.account.equity 
-        : (userProfile.initialBalance + totalPnL);
+    // For PRO users, if not connected, show 0.00
+    const currentBalance = eaSession?.data?.account?.equity !== undefined
+        ? eaSession.data.account.equity
+        : (isPro ? 0 : (userProfile.initialBalance + totalPnL));
 
     const wins = trades.filter(t => t.result === 'Win');
     const losses = trades.filter(t => t.result === 'Loss');
@@ -245,7 +248,37 @@ const Dashboard: React.FC<DashboardProps> = ({ isDarkMode, trades, dailyBias, on
         return (eaSession?.data?.openPositions || []).reduce((sum: number, pos: any) => sum + pos.profit, 0);
     }, [eaSession]);
 
+    const LockedView = ({ title, subtitle }: { title: string, subtitle: string }) => (
+        <div className={`h-full w-full p-6 rounded-2xl border flex flex-col items-center justify-center text-center relative overflow-hidden ${isDarkMode ? 'bg-[#18181b] border-[#27272a]' : 'bg-white border-slate-100 shadow-md'}`}>
+            <div className="absolute inset-0 bg-black/5 dark:bg-white/[0.02] backdrop-blur-[2px] z-10" />
+            <div className="relative z-20 flex flex-col items-center gap-3">
+                <div className="p-3 rounded-2xl bg-[#FF4F01]/10 text-[#FF4F01] shadow-xl shadow-[#FF4F01]/10">
+                    <Lock size={24} />
+                </div>
+                <div>
+                    <h4 className="text-sm font-black uppercase tracking-widest mb-1">{title}</h4>
+                    <p className="text-[10px] font-bold opacity-40 px-6 leading-relaxed">{subtitle}</p>
+                </div>
+                <button 
+                    onClick={() => onViewChange('settings')}
+                    className="mt-2 px-6 py-2 bg-[#FF4F01] text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-[#FF4F01]/20 hover:scale-105 transition-all"
+                >
+                    Upgrade to Unlock
+                </button>
+            </div>
+        </div>
+    );
+
     const renderWidget = (id: string) => {
+        if (isFreeTier && (id === 'dailyBias' || id === 'openPositions')) {
+            return (
+                <LockedView 
+                    title={id === 'dailyBias' ? "Daily Bias" : "Open Positions"} 
+                    subtitle={id === 'dailyBias' ? "Stay aligned with market direction. Upgrade to PRO to use the Daily Bias tracker." : "Monitor your live trades in real-time. Upgrade to PRO to unlock the Live Bridge."} 
+                />
+            );
+        }
+
         switch (id) {
             case 'dailyBias':
                 return <DailyBiasWidget isDarkMode={isDarkMode} dailyBias={dailyBias} onUpdateBias={onUpdateBias} />;
@@ -276,7 +309,7 @@ const Dashboard: React.FC<DashboardProps> = ({ isDarkMode, trades, dailyBias, on
                             }))}
                             isDarkMode={isDarkMode}
                             currencySymbol={userProfile.currencySymbol}
-                            lastUpdated={eaSession?.lastUpdated}
+                            lastUpdated={eaSession?.last_updated}
                         />
                     </div>
                 );
@@ -310,7 +343,14 @@ const Dashboard: React.FC<DashboardProps> = ({ isDarkMode, trades, dailyBias, on
                             <Wallet size={20} />
                         </div>
                         <div>
-                            <div className="text-[10px] font-bold opacity-40 uppercase tracking-widest leading-none mb-1">Account Balance</div>
+                            <div className="flex items-center gap-2">
+                                <div className="text-[10px] font-bold opacity-40 uppercase tracking-widest leading-none mb-1">Account Balance</div>
+                                {eaSession?.data?.account?.is_demo !== undefined && (
+                                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border ${eaSession.data.account.is_demo ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'}`}>
+                                        {eaSession.data.account.is_demo ? 'Demo' : 'Real'}
+                                    </span>
+                                )}
+                            </div>
                             <div className="text-xl font-black font-mono tracking-tighter leading-none">{userProfile.currencySymbol}{currentBalance.toLocaleString()}</div>
                         </div>
                     </div>
