@@ -35,3 +35,42 @@ export const APP_CONSTANTS = {
     { code: 'ZAR', symbol: 'R', name: 'South African Rand' },
   ]
 };
+
+export const PLAN_FEATURES = {
+  [APP_CONSTANTS.PLANS.FREE]: {
+    maxTradesPerMonth: 50,
+    maxNotes: 1,
+    maxImages: 0,
+    allowImageUploads: false,
+    advancedAnalytics: false, // Growth, Discipline tabs
+    comparisonAnalytics: false,
+    multiChartLayouts: false,
+    directBrokerSync: false,
+    aiInsights: false,
+    voiceNotes: false,
+  },
+  [APP_CONSTANTS.PLANS.HOBBY]: { // PRO
+    maxTradesPerMonth: 500,
+    maxNotes: Infinity,
+    maxImages: 1000,
+    allowImageUploads: true,
+    advancedAnalytics: true,
+    comparisonAnalytics: false,
+    multiChartLayouts: false,
+    directBrokerSync: false,
+    aiInsights: false,
+    voiceNotes: false,
+  },
+  [APP_CONSTANTS.PLANS.STANDARD]: { // PREMIUM
+    maxTradesPerMonth: Infinity,
+    maxNotes: Infinity,
+    maxImages: Infinity,
+    allowImageUploads: true,
+    advancedAnalytics: true,
+    comparisonAnalytics: true,
+    multiChartLayouts: true,
+    directBrokerSync: false, // Excluded for now
+    aiInsights: false, // Excluded for now
+    voiceNotes: false, // Excluded for now
+  }
+};

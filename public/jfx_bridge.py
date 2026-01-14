@@ -49,6 +49,7 @@ def get_positions():
             "symbol": pos.symbol,
             "type": "BUY" if pos.type == 0 else "SELL",
             "volume": pos.volume,
+            "time": pos.time,
             "open_price": pos.price_open,
             "current_price": pos.price_current,
             "sl": pos.sl,

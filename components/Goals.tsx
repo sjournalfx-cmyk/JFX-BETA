@@ -67,14 +67,94 @@ const ProgressBar = ({ progress, colorClass, height = 'h-2' }: { progress: numbe
     </div>
 );
 
+const ProgressChart = ({ goal, trades, isDarkMode }: { goal: Goal, trades: Trade[], isDarkMode: boolean }) => {
+    const data = useMemo(() => {
+        let points: { date: string, value: number }[] = [];
+        
+        if (goal.autoTrackRule) {
+            const relevantTrades = trades
+                .filter(t => t.date >= goal.startDate && t.date <= goal.endDate)
+                .filter(t => !goal.autoTrackRule?.filterTag || t.tags.some(tag => tag.includes(goal.autoTrackRule!.filterTag!)))
+                .sort((a, b) => a.date.localeCompare(b.date));
+
+            let cumulative = 0;
+            points = relevantTrades.map(t => {
+                if (goal.autoTrackRule?.type === 'pnl') cumulative += t.pnl;
+                else if (goal.autoTrackRule?.type === 'trade_count') cumulative += 1;
+                else if (goal.autoTrackRule?.type === 'win_rate') {
+                    // Win rate is harder to cumulative line, showing simple count for now or skip
+                    cumulative += t.result === 'Win' ? 1 : 0;
+                }
+                return { date: t.date, value: cumulative };
+            });
+        } else {
+            const entries = [...(goal.manualEntries || [])].sort((a, b) => a.date.localeCompare(b.date));
+            let cumulative = goal.startValue || 0;
+            points = entries.map(e => {
+                cumulative += e.value;
+                return { date: e.date, value: cumulative };
+            });
+        }
+
+        if (points.length < 2) return null;
+
+        const values = points.map(p => p.value);
+        const min = Math.min(...values, goal.targetValue * 0.1);
+        const max = Math.max(...values, goal.targetValue);
+        const range = max - min || 1;
+
+        const path = points.map((p, i) => {
+            const x = (i / (points.length - 1)) * 100;
+            const y = 100 - ((p.value - min) / range) * 100;
+            return `${x},${y}`;
+        }).join(' L ');
+
+        return { path, min, max };
+    }, [goal, trades]);
+
+    if (!data) return null;
+
+    return (
+        <div className="h-32 w-full mt-6 relative group">
+            <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible" preserveAspectRatio="none">
+                <defs>
+                    <linearGradient id="goalGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#6366f1" stopOpacity="0.2" />
+                        <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
+                    </linearGradient>
+                </defs>
+                <path 
+                    d={`M 0,100 L ${data.path} L 100,100 Z`} 
+                    fill="url(#goalGradient)" 
+                    className="transition-all duration-1000"
+                />
+                <path 
+                    d={`M ${data.path}`} 
+                    fill="none" 
+                    stroke="#6366f1" 
+                    strokeWidth="2" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round"
+                    className="transition-all duration-1000"
+                />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                <div className={`px-2 py-1 rounded text-[10px] font-bold ${isDarkMode ? 'bg-zinc-800 text-zinc-400' : 'bg-white text-slate-500'} border border-current opacity-20`}>
+                    Progress Curve
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- LOGIC HELPERS ---
 
 const calculateProgress = (goal: Goal, trades: Trade[]) => {
-    let relevantTrades = trades.filter(t => t.date >= goal.startDate && t.date <= goal.endDate);
-    if (goal.autoTrackRule?.filterTag) {
-        relevantTrades = relevantTrades.filter(t => t.tags.some(tag => tag.includes(goal.autoTrackRule!.filterTag!)));
-    }
     if (goal.autoTrackRule) {
+        let relevantTrades = trades.filter(t => t.date >= goal.startDate && t.date <= goal.endDate);
+        if (goal.autoTrackRule?.filterTag) {
+            relevantTrades = relevantTrades.filter(t => t.tags.some(tag => tag.includes(goal.autoTrackRule!.filterTag!)));
+        }
         switch (goal.autoTrackRule.type) {
             case 'pnl':
                 return relevantTrades.reduce((acc, t) => acc + t.pnl, 0);
@@ -107,7 +187,10 @@ const calculateProgress = (goal: Goal, trades: Trade[]) => {
                 return 0;
         }
     }
-    return goal.manualProgress || 0;
+    
+    // Sum of manual entries
+    const manualSum = (goal.manualEntries || []).reduce((acc, entry) => acc + entry.value, 0);
+    return (goal.manualProgress || 0) + manualSum;
 };
 
 const formatMetric = (val: number, type: MetricType, symbol: string) => {
@@ -156,10 +239,101 @@ const Goals: React.FC<GoalsProps> = ({ isDarkMode, trades, goals, onAddGoal, onU
     const [isAddingMilestone, setIsAddingMilestone] = useState(false);
     const [milestoneForm, setMilestoneForm] = useState({ title: '', target: '' });
 
+    // Manual Progress Add State
+    const [isAddingManualEntry, setIsAddingManualEntry] = useState(false);
+    const [manualEntryForm, setManualEntryForm] = useState({ value: '', note: '' });
+
     // Celebration State
     const [celebratedGoals, setCelebratedGoals] = useState<Set<string>>(new Set());
 
     const selectedGoal = useMemo(() => goals.find(g => g.id === selectedGoalId), [goals, selectedGoalId]);
+
+    // Actions
+    const checkMilestones = (goal: Goal, currentProgress: number): Goal => {
+        let changed = false;
+        const updatedMilestones = goal.milestones.map(m => {
+            // Auto-achieve if progress meets target and not already achieved
+            if (currentProgress >= m.targetValue && !m.isAchieved) {
+                changed = true;
+                confetti({
+                    particleCount: 60,
+                    spread: 60,
+                    origin: { y: 0.7 },
+                    colors: ['#10b981', '#6366f1']
+                });
+                return { ...m, isAchieved: true, dateAchieved: new Date().toISOString().split('T')[0] };
+            }
+            // Optional: Auto-unachieve if progress falls below target (e.g. after deletion)
+            if (currentProgress < m.targetValue && m.isAchieved && !goal.autoTrackRule) {
+                changed = true;
+                return { ...m, isAchieved: false, dateAchieved: undefined };
+            }
+            return m;
+        });
+
+        return changed ? { ...goal, milestones: updatedMilestones } : goal;
+    };
+
+    const handleAddManualEntry = async () => {
+        if (!selectedGoalId || !selectedGoal || !manualEntryForm.value) return;
+        
+        const newValue = parseFloat(manualEntryForm.value);
+        const newEntry = {
+            id: Date.now().toString(),
+            value: newValue,
+            date: new Date().toISOString().split('T')[0],
+            note: manualEntryForm.note
+        };
+
+        const updatedEntries = [...(selectedGoal.manualEntries || []), newEntry];
+        const newTotalProgress = (selectedGoal.manualProgress || 0) + updatedEntries.reduce((acc, e) => acc + e.value, 0);
+        
+        let updatedGoal: Goal = {
+            ...selectedGoal,
+            manualEntries: updatedEntries
+        };
+
+        // Auto-check milestones
+        updatedGoal = checkMilestones(updatedGoal, newTotalProgress);
+
+        await onUpdateGoal(updatedGoal);
+        setIsAddingManualEntry(false);
+        setManualEntryForm({ value: '', note: '' });
+        
+        if (newTotalProgress < updatedGoal.targetValue) {
+            confetti({
+                particleCount: 40,
+                spread: 50,
+                origin: { y: 0.8 },
+                colors: ['#6366f1', '#10b981']
+            });
+        }
+    };
+
+    const handleDeleteManualEntry = async (entryId: string) => {
+        if (!selectedGoal) return;
+
+        setConfirmModal({
+            isOpen: true,
+            title: 'Remove Entry',
+            description: 'Are you sure you want to remove this progress entry?',
+            onConfirm: async () => {
+                const updatedEntries = (selectedGoal.manualEntries || []).filter(e => e.id !== entryId);
+                const newTotalProgress = (selectedGoal.manualProgress || 0) + updatedEntries.reduce((acc, e) => acc + e.value, 0);
+                
+                let updatedGoal: Goal = {
+                    ...selectedGoal,
+                    manualEntries: updatedEntries
+                };
+
+                // Re-check milestones (might un-achieve)
+                updatedGoal = checkMilestones(updatedGoal, newTotalProgress);
+
+                await onUpdateGoal(updatedGoal);
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+            }
+        });
+    };
 
     // Track Goal Completion for Celebrations
     React.useEffect(() => {
@@ -479,22 +653,21 @@ const Goals: React.FC<GoalsProps> = ({ isDarkMode, trades, goals, onAddGoal, onU
                             {newGoal.autoTrackRule && (
                                 <div className="mt-4 pt-4 border-t border-dashed border-gray-500/20 grid grid-cols-2 gap-4 animate-in slide-in-from-top-2">
                                     <div>
-                                        <label className="text-[10px] font-bold uppercase tracking-wider opacity-50 mb-1.5 block">Metric Source</label>
-                                        <Select
-                                            value={newGoal.autoTrackRule.type}
-                                            onChange={(val) => setNewGoal({ ...newGoal, autoTrackRule: { ...newGoal.autoTrackRule!, type: val as any } })}
-                                            options={[
-                                                { value: 'pnl', label: 'Net Profit (P&L)' },
-                                                { value: 'win_rate', label: 'Win Rate %' },
-                                                { value: 'trade_count', label: 'Trade Count' },
-                                                { value: 'drawdown', label: 'Max Drawdown' },
-                                            ]}
-                                            isDarkMode={isDarkMode}
-                                        />
-                                    </div>
-                                    <div><label className="text-[10px] font-bold uppercase tracking-wider opacity-50 mb-1.5 block">Filter Tag (Optional)</label><input placeholder="e.g. 'Silver Bullet'" value={newGoal.autoTrackRule.filterTag || ''} onChange={(e) => setNewGoal({ ...newGoal, autoTrackRule: { ...newGoal.autoTrackRule!, filterTag: e.target.value } })} className={`w-full p-2.5 rounded-lg text-sm border outline-none ${isDarkMode ? 'bg-[#0c0c0e] border-zinc-700 text-white' : 'bg-white border-slate-300'}`} /></div>
-                                </div>
-                            )}
+                                                                                    <label className="text-[10px] font-bold uppercase tracking-wider opacity-50 mb-1.5 block">Metric Source</label>
+                                                                                    <Select
+                                                                                        value={newGoal.autoTrackRule.type}
+                                                                                        onChange={(val) => setNewGoal({ ...newGoal, autoTrackRule: { ...newGoal.autoTrackRule!, type: val as any } })}
+                                                                                        options={[
+                                                                                            { value: 'pnl', label: 'Net Profit (P&L)' },
+                                                                                            { value: 'win_rate', label: 'Win Rate %' },
+                                                                                            { value: 'trade_count', label: 'Trade Count' },
+                                                                                            { value: 'drawdown', label: 'Max Drawdown' },
+                                                                                        ]}
+                                                                                        isDarkMode={isDarkMode}
+                                                                                    />
+                                                                                </div>
+                                                                                <div><label className="text-[10px] font-bold uppercase tracking-wider opacity-50 mb-1.5 block">Filter Strategy (Optional)</label><input placeholder="e.g. 'Trendline Break'" value={newGoal.autoTrackRule.filterTag || ''} onChange={(e) => setNewGoal({ ...newGoal, autoTrackRule: { ...newGoal.autoTrackRule!, filterTag: e.target.value } })} className={`w-full p-2.5 rounded-lg text-sm border outline-none ${isDarkMode ? 'bg-[#0c0c0e] border-zinc-700 text-white' : 'bg-white border-slate-300'}`} /></div>
+                                                                            </div>                            )}
                         </div>
                     </div>
                 )}
@@ -525,6 +698,15 @@ const Goals: React.FC<GoalsProps> = ({ isDarkMode, trades, goals, onAddGoal, onU
         const currentRunRate = daysPassed > 0 ? current / daysPassed : 0;
         const projectedTotal = currentRunRate * totalDays;
         const requiredRunRate = daysLeft > 0 ? (selectedGoal.targetValue - current) / daysLeft : 0;
+        
+        // Forecasting Logic
+        const remainingToTarget = selectedGoal.targetValue - current;
+        const estDaysToFinish = currentRunRate > 0 && remainingToTarget > 0 ? remainingToTarget / currentRunRate : Infinity;
+        const projectedFinishDate = estDaysToFinish !== Infinity && estDaysToFinish < 3650 
+            ? new Date(Date.now() + estDaysToFinish * 24 * 60 * 60 * 1000) 
+            : null;
+        const isProjectedLate = projectedFinishDate ? projectedFinishDate > endDate : false;
+
         const isRisk = selectedGoal.type === 'Risk';
         const isExceeded = isRisk && current > selectedGoal.targetValue;
         const isOnTrack = isRisk ? current <= selectedGoal.targetValue : projectedTotal >= selectedGoal.targetValue;
@@ -539,7 +721,13 @@ const Goals: React.FC<GoalsProps> = ({ isDarkMode, trades, goals, onAddGoal, onU
                     <button onClick={() => setView('dashboard')} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${isDarkMode ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-slate-100 text-slate-500'}`}><ChevronLeft size={16} /> Back to Goals</button>
                     <div className="flex gap-2">
                         <button onClick={() => deleteGoal(selectedGoal.id)} className="p-2.5 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-colors" title="Delete Goal"><Trash2 size={18} /></button>
-                        <button className={`p-2.5 rounded-xl transition-colors ${isDarkMode ? 'text-zinc-400 hover:bg-zinc-800' : 'text-slate-500 hover:bg-slate-100'}`}><Settings2 size={18} /></button>
+                        <button 
+                            onClick={handleEditGoal}
+                            className={`p-2.5 rounded-xl transition-colors ${isDarkMode ? 'text-zinc-400 hover:bg-zinc-800' : 'text-slate-500 hover:bg-slate-100'}`}
+                            title="Edit Goal"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-settings2 lucide-settings-2" aria-hidden="true"><path d="M14 17H5"></path><path d="M19 7h-9"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>
+                        </button>
                     </div>
                 </header>
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -575,6 +763,7 @@ const Goals: React.FC<GoalsProps> = ({ isDarkMode, trades, goals, onAddGoal, onU
                                         </div>
                                     )}
                                 </div>
+                                <ProgressChart goal={selectedGoal} trades={trades} isDarkMode={isDarkMode} />
                             </div>
                             <div className="flex flex-col gap-4">
                                 <div className={`flex-1 p-5 rounded-2xl border flex flex-col justify-center ${isDarkMode ? 'bg-[#0c0c0e] border-zinc-800' : 'bg-slate-50 border-slate-200'}`}>
@@ -588,6 +777,27 @@ const Goals: React.FC<GoalsProps> = ({ isDarkMode, trades, goals, onAddGoal, onU
                                     </div>
                                 </div>
                                 <div className={`flex-1 p-5 rounded-2xl border flex flex-col justify-center ${isDarkMode ? 'bg-[#0c0c0e] border-zinc-800' : 'bg-slate-50 border-slate-200'}`}><span className="text-xs font-bold uppercase opacity-50 mb-1">Time Elapsed</span><div className="text-2xl font-black font-mono">{Math.round((daysPassed / totalDays) * 100)}%</div><div className="text-xs opacity-50 mt-1">{Math.floor(daysLeft)} days remaining</div></div>
+                                
+                                {!isRisk && (
+                                    <div className={`flex-1 p-5 rounded-2xl border flex flex-col justify-center relative overflow-hidden ${isDarkMode ? 'bg-[#0c0c0e] border-zinc-800' : 'bg-slate-50 border-slate-200'}`}>
+                                        <div className={`absolute top-0 right-0 p-2 opacity-10 ${isProjectedLate ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                            <Sparkles size={24} />
+                                        </div>
+                                        <span className="text-xs font-bold uppercase opacity-50 mb-1">Forecast Insight</span>
+                                        {projectedFinishDate ? (
+                                            <>
+                                                <div className={`text-xl font-black ${isProjectedLate ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                                    {projectedFinishDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                </div>
+                                                <div className="text-[10px] font-bold uppercase tracking-tight opacity-60 mt-1">
+                                                    {isProjectedLate ? 'Projected after deadline' : 'On track for deadline'}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="text-sm font-bold opacity-40">Insufficient data to forecast</div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -628,7 +838,7 @@ const Goals: React.FC<GoalsProps> = ({ isDarkMode, trades, goals, onAddGoal, onU
                         </div>
                         <div className="space-y-4">
                             <div className="flex justify-between items-center"><h3 className="font-bold text-lg flex items-center gap-2"><Activity size={18} className="text-amber-500" /> Contributing Activity</h3>{selectedGoal.autoTrackRule && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">Auto-Linked</span>}</div>
-                            <div className={`p-1 rounded-2xl border min-h-[300px] overflow-hidden ${isDarkMode ? 'bg-[#18181b] border-[#27272a]' : 'bg-white border-slate-200'}`}>
+                            <div className={`p-1 rounded-2xl border min-h-[300px] flex flex-col overflow-hidden ${isDarkMode ? 'bg-[#18181b] border-[#27272a]' : 'bg-white border-slate-200'}`}>
                                 {selectedGoal.autoTrackRule ? (
                                     <div className="flex flex-col h-full">
                                         <div className="flex-1 overflow-y-auto max-h-[300px] custom-scrollbar p-2 space-y-1">
@@ -642,7 +852,90 @@ const Goals: React.FC<GoalsProps> = ({ isDarkMode, trades, goals, onAddGoal, onU
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="h-full flex flex-col items-center justify-center p-8 text-center"><div className="w-16 h-16 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center mb-4"><Clock size={24} className="opacity-50" /></div><h4 className="font-bold mb-1">Manual Tracking</h4><p className="text-xs opacity-50 max-w-[200px] mb-4">This goal requires manual entry.</p><button className={`px-4 py-2 rounded-lg text-xs font-bold border transition-all ${isDarkMode ? 'border-zinc-700 hover:bg-zinc-800' : 'border-slate-300 hover:bg-slate-100'}`}>Add Progress Entry</button></div>
+                                    <div className="flex flex-col h-full">
+                                        <div className="flex-1 overflow-y-auto max-h-[350px] custom-scrollbar p-2 space-y-1">
+                                            {(selectedGoal.manualEntries || []).length > 0 ? (
+                                                [...(selectedGoal.manualEntries || [])].reverse().map(entry => (
+                                                    <div key={entry.id} className={`flex justify-between items-center p-3 rounded-xl transition-colors group/item ${isDarkMode ? 'hover:bg-zinc-800' : 'hover:bg-slate-50'}`}>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`w-1 h-8 rounded-full bg-indigo-500`} />
+                                                            <div>
+                                                                <div className="font-bold text-sm">{entry.note || 'Progress Update'}</div>
+                                                                <div className="text-xs opacity-50">{entry.date}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="font-mono font-bold text-indigo-500">+{formatMetric(entry.value, selectedGoal.metric, currencySymbol)}</div>
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); handleDeleteManualEntry(entry.id); }}
+                                                                className="p-1.5 text-rose-500 opacity-0 group-hover/item:opacity-100 hover:bg-rose-500/10 rounded-lg transition-all"
+                                                                title="Delete Entry"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            ) : !isAddingManualEntry && (
+                                                <div className="h-full flex flex-col items-center justify-center p-8 text-center">
+                                                    <div className="w-16 h-16 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center mb-4"><Clock size={24} className="opacity-50" /></div>
+                                                    <h4 className="font-bold mb-1">Manual Tracking</h4>
+                                                    <p className="text-xs opacity-50 max-w-[200px] mb-4">This goal requires manual entry.</p>
+                                                </div>
+                                            )}
+
+                                            {isAddingManualEntry ? (
+                                                <div className="p-4 rounded-xl bg-indigo-500/5 border border-indigo-500/20 animate-in slide-in-from-top-2">
+                                                    <div className="space-y-3">
+                                                        <div>
+                                                            <label className="text-[9px] font-bold uppercase opacity-50 mb-1 block">Value to Add ({selectedGoal.metric})</label>
+                                                            <input 
+                                                                type="number" 
+                                                                autoFocus
+                                                                value={manualEntryForm.value}
+                                                                onChange={e => setManualEntryForm({ ...manualEntryForm, value: e.target.value })}
+                                                                className={`w-full p-2 rounded-lg border outline-none font-mono font-bold ${isDarkMode ? 'bg-[#0c0c0e] border-zinc-700' : 'bg-white border-slate-200'}`}
+                                                                placeholder="0.00"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[9px] font-bold uppercase opacity-50 mb-1 block">Note (Optional)</label>
+                                                            <input 
+                                                                value={manualEntryForm.note}
+                                                                onChange={e => setManualEntryForm({ ...manualEntryForm, note: e.target.value })}
+                                                                className={`w-full p-2 rounded-lg border outline-none text-sm ${isDarkMode ? 'bg-[#0c0c0e] border-zinc-700' : 'bg-white border-slate-200'}`}
+                                                                placeholder="What did you achieve?"
+                                                            />
+                                                        </div>
+                                                        <div className="flex gap-2 pt-1">
+                                                            <button 
+                                                                onClick={handleAddManualEntry}
+                                                                disabled={!manualEntryForm.value}
+                                                                className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-500 disabled:opacity-50"
+                                                            >
+                                                                Save Entry
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => setIsAddingManualEntry(false)}
+                                                                className={`px-4 py-2 rounded-lg text-xs font-bold border ${isDarkMode ? 'border-zinc-700 text-zinc-400' : 'border-slate-200 text-slate-500'}`}
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="p-2">
+                                                    <button 
+                                                        onClick={() => setIsAddingManualEntry(true)}
+                                                        className={`w-full py-3 rounded-xl font-bold text-xs border border-dashed transition-all flex items-center justify-center gap-2 ${isDarkMode ? 'border-zinc-700 hover:bg-zinc-800 text-zinc-400' : 'border-slate-300 hover:bg-slate-50 text-slate-500'}`}
+                                                    >
+                                                        <Plus size={14} /> Add Progress Entry
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         </div>

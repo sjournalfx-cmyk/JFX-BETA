@@ -13,13 +13,15 @@ interface BridgeProps {
     isDarkMode: boolean;
     userProfile: UserProfile;
     onUpdateProfile: (profile: UserProfile) => Promise<void>;
+    eaSession?: any;
+    onTradeAdded?: (trade: Trade) => void;
 }
 
-const Bridge: React.FC<BridgeProps> = ({ isDarkMode, userProfile, onUpdateProfile }) => {
+const Bridge: React.FC<BridgeProps> = ({ isDarkMode, userProfile, onUpdateProfile, eaSession, onTradeAdded }) => {
     const [isInternalConnected, setIsInternalConnected] = useState(userProfile.eaConnected);
     const [syncKey, setSyncKey] = useState(userProfile.syncKey || '');
-    const [liveData, setLiveData] = useState<any>(null);
-    const [lastHeartbeat, setLastHeartbeat] = useState<Date | null>(null);
+    const [liveData, setLiveData] = useState<any>(eaSession?.data || null);
+    const [lastHeartbeat, setLastHeartbeat] = useState<Date | null>(eaSession?.last_updated ? new Date(eaSession.last_updated) : null);
     const [syncLog, setSyncLog] = useState<{ time: Date; message: string; type: 'success' | 'info' | 'error' }[]>([]);
 
     // Sync internal connection state with profile
@@ -27,48 +29,23 @@ const Bridge: React.FC<BridgeProps> = ({ isDarkMode, userProfile, onUpdateProfil
         setIsInternalConnected(userProfile.eaConnected);
     }, [userProfile.eaConnected]);
 
-    // Fetch live session data if connected
+    // Update live data from prop
     useEffect(() => {
-        if (isInternalConnected && syncKey) {
-            const fetchSession = async () => {
-                const data = await dataService.getEASession(syncKey);
-                if (data) {
-                    setLiveData(data.data);
-                    setLastHeartbeat(new Date(data.last_updated));
-                    setSyncLog(prev => [{ time: new Date(), message: 'Initial data loaded', type: 'info' } as const, ...prev].slice(0, 5));
-                }
-            };
-            fetchSession();
+        if (eaSession?.data) {
+            setLiveData(eaSession.data);
+            setLastHeartbeat(new Date(eaSession.last_updated));
 
-            const channel = supabase
-                .channel('bridge_live_monitor_global')
-                .on('postgres_changes', {
-                    event: '*',
-                    schema: 'public',
-                    table: 'ea_sessions'
-                }, (payload) => {
-                    // Manual filter for robustness
-                    if (payload.new && (payload.new as any).sync_key === syncKey) {
-                        const newData = (payload.new as any).data;
-                        setLiveData(newData);
-                        setLastHeartbeat(new Date((payload.new as any).last_updated));
+            // Add entry to log if it's a new update
+            const isHeartbeat = eaSession.data.isHeartbeat;
+            const tradeCount = eaSession.data.trades?.length || 0;
+            const msg = isHeartbeat ? 'Heartbeat received' : `Synced ${tradeCount} trades from terminal`;
 
-                        // Add entry to log
-                        const isHeartbeat = newData.isHeartbeat;
-                        const tradeCount = newData.trades?.length || 0;
-                        const msg = isHeartbeat ? 'Heartbeat received' : `Synced ${tradeCount} trades from terminal`;
-
-                        setSyncLog(prev => [
-                            { time: new Date(), message: msg, type: 'success' } as const,
-                            ...prev
-                        ].slice(0, 5));
-                    }
-                })
-                .subscribe();
-
-            return () => { supabase.removeChannel(channel); };
+            setSyncLog(prev => [
+                { time: new Date(), message: msg, type: 'success' } as const,
+                ...prev
+            ].slice(0, 5));
         }
-    }, [isInternalConnected, syncKey]);
+    }, [eaSession]);
 
     if (isInternalConnected) {
         return (
@@ -83,6 +60,7 @@ const Bridge: React.FC<BridgeProps> = ({ isDarkMode, userProfile, onUpdateProfil
                     await onUpdateProfile(updated);
                     setIsInternalConnected(false);
                 }}
+                onTradeAdded={onTradeAdded}
             />
         );
     }
@@ -91,6 +69,7 @@ const Bridge: React.FC<BridgeProps> = ({ isDarkMode, userProfile, onUpdateProfil
         <BridgeWizard
             isDarkMode={isDarkMode}
             userProfile={userProfile}
+            onUpdateProfile={onUpdateProfile}
             onComplete={async (key) => {
                 const updated = { ...userProfile, syncKey: key, eaConnected: true };
                 await onUpdateProfile(updated);
@@ -102,13 +81,22 @@ const Bridge: React.FC<BridgeProps> = ({ isDarkMode, userProfile, onUpdateProfil
 };
 
 /* --- SUB-COMPONENT: BRIDGE MONITOR (The "Connected" Page) --- */
-const BridgeMonitor = ({ isDarkMode, liveData, lastHeartbeat, syncKey, syncLog, onDisconnect }: any) => {
+const BridgeMonitor = ({ isDarkMode, liveData, lastHeartbeat, syncKey, syncLog, onDisconnect, onTradeAdded }: any) => {
     const [now, setNow] = useState(new Date());
     const [savedTrades, setSavedTrades] = useState<Trade[]>([]);
     const [isSavingTrade, setIsSavingTrade] = useState<string | null>(null); // Track specific trade being saved
+    const [copied, setCopied] = useState(false);
 
     const cardBg = isDarkMode ? 'bg-[#111] border-zinc-800' : 'bg-white border-zinc-100 shadow-sm';
     const subTextColor = isDarkMode ? 'text-zinc-500' : 'text-[#666666]';
+    const backendUrl = `${(import.meta as any).env.VITE_SUPABASE_URL}/functions/v1/sync-trades`;
+    const apiKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
+
+    const handleCopy = (text: string) => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
 
     // Update 'now' every second to make the timeAgo counter live
     useEffect(() => {
@@ -171,6 +159,11 @@ const BridgeMonitor = ({ isDarkMode, liveData, lastHeartbeat, syncKey, syncLog, 
 
             const saved = await dataService.addTrade(newTrade);
             setSavedTrades(prev => [saved, ...prev]);
+            
+            // Notify global state
+            if (onTradeAdded) {
+                onTradeAdded(saved);
+            }
         } catch (error) {
             console.error("Failed to add trade:", error);
         } finally {
@@ -258,6 +251,18 @@ const BridgeMonitor = ({ isDarkMode, liveData, lastHeartbeat, syncKey, syncLog, 
                             <div className="px-4 py-3 rounded-2xl bg-black/5 dark:bg-white/5 border border-dashed border-zinc-500/30">
                                 <div className="text-[9px] font-black uppercase tracking-tighter opacity-40 mb-1">Your Sync Key</div>
                                 <div className="text-sm font-mono font-bold text-[#FF4F01]">{syncKey}</div>
+                            </div>
+                            <div 
+                                onClick={() => handleCopy(`python jfx_bridge.py --key ${syncKey} --url ${backendUrl} --apikey ${apiKey}`)}
+                                className="px-4 py-3 rounded-2xl bg-[#FF4F01]/5 border border-dashed border-[#FF4F01]/30 cursor-pointer group hover:bg-[#FF4F01]/10 transition-all"
+                            >
+                                <div className="flex items-center justify-between gap-4 mb-1">
+                                    <div className="text-[9px] font-black uppercase tracking-tighter text-[#FF4F01]">Run Command</div>
+                                    {copied ? <Check size={10} className="text-emerald-500" /> : <Copy size={10} className="opacity-40 group-hover:opacity-100 transition-opacity" />}
+                                </div>
+                                <div className="text-[10px] font-mono font-bold opacity-60 truncate max-w-[150px]">
+                                    python jfx_bridge.py --key {syncKey}...
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -417,7 +422,7 @@ const BridgeMonitor = ({ isDarkMode, liveData, lastHeartbeat, syncKey, syncLog, 
 };
 
 /* --- SUB-COMPONENT: BRIDGE WIZARD (The Setup Steps) --- */
-const BridgeWizard = ({ isDarkMode, onComplete, userProfile }: any) => {
+const BridgeWizard = ({ isDarkMode, onComplete, userProfile, onUpdateProfile }: any) => {
     const [step, setStep] = useState(0);
     const [syncKey, setSyncKey] = useState(userProfile.syncKey || '');
     const [copied, setCopied] = useState(false);
@@ -428,6 +433,10 @@ const BridgeWizard = ({ isDarkMode, onComplete, userProfile }: any) => {
         if (!syncKey) {
             const newKey = `JFX-${Math.floor(1000 + Math.random() * 9000)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
             setSyncKey(newKey);
+            // Auto-save the key immediately so the bridge can connect
+            if (onUpdateProfile) {
+                onUpdateProfile({ ...userProfile, syncKey: newKey });
+            }
         }
     }, []);
 

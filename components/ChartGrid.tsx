@@ -10,40 +10,38 @@ import {
 import TradingViewWidget from './TradingViewWidget';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { UserProfile } from '../types';
+import { useToast } from './ui/Toast';
+import { APP_CONSTANTS, PLAN_FEATURES } from '../lib/constants';
 
 interface ChartGridProps {
   isDarkMode: boolean;
   isFocusMode?: boolean;
   onToggleFocus?: () => void;
   userProfile: UserProfile;
+  onUpdateProfile: (profile: UserProfile) => Promise<void>;
 }
 
 const WATCHLISTS = {
   'Forex': [
-    'EURUSD', 'GBPUSD', 'USDJPY', 'AUDUSD', 'USDCAD', 'USDCHF', 'NZDUSD',
-    'EURGBP', 'EURJPY', 'GBPJPY', 'CADJPY', 'AUDJPY', 'CHFJPY',
-    'EURAUD', 'GBPAUD', 'EURCAD', 'GBPCAD', 'AUDNZD', 'NZDJPY'
+    'FX:EURUSD', 'FX:GBPUSD', 'FX:USDJPY', 'FX:AUDUSD', 'FX:USDCAD', 'FX:USDCHF', 'FX:NZDUSD',
+    'FX:EURGBP', 'FX:EURJPY', 'FX:GBPJPY', 'FX:CADJPY', 'FX:AUDJPY', 'FX:CHFJPY',
+    'FX:EURAUD', 'FX:GBPAUD', 'FX:EURCAD', 'FX:GBPCAD', 'FX:AUDNZD', 'FX:NZDJPY'
   ],
   'Crypto': [
-    'BTCUSD', 'ETHUSD', 'SOLUSD', 'XRPUSD', 'BNBUSD', 'ADAUSD', 'DOGEUSD', 
-    'AVAXUSD', 'DOTUSD', 'MATICUSD', 'LINKUSD', 'LTCUSD', 'SHIBUSD', 'UNIUSD'
+    'BINANCE:BTCUSD', 'BINANCE:ETHUSD', 'BINANCE:SOLUSD', 'BINANCE:XRPUSD', 'BINANCE:BNBUSD', 
+    'BINANCE:ADAUSD', 'BINANCE:DOGEUSD', 'BINANCE:AVAXUSD', 'BINANCE:DOTUSD', 
+    'BINANCE:MATICUSD', 'BINANCE:LINKUSD', 'BINANCE:LTCUSD', 'BINANCE:SHIBUSD', 'BINANCE:UNIUSD'
   ],
   'Indices': [
-    'SPX500', 'NAS100', 'US30', 'US2000',
-    'GER40', 'UK100', 'FRA40', 'EU50',
-    'JP225', 'HK50', 'AU200', 'CN50'
+    'OANDA:SPX500USD', 'OANDA:NAS100USD', 'TVC:US30', 'TVC:RUT',
+    'TVC:DE40', 'TVC:UK100', 'TVC:FR40', 'TVC:EU50',
+    'TVC:JP225', 'TVC:HSI', 'OANDA:AU200AUD', 'TVC:CN50'
   ],
   'Commodities': [
-    'XAUUSD', 'XAGUSD', 'XPTUSD', 'XPDUSD',
-    'WTI', 'BRENT', 'NGAS',
-    'COPPER', 'CORN', 'WHEAT'
+    'OANDA:XAUUSD', 'OANDA:XAGUSD', 'TVC:PLATINUM', 'TVC:PALLADIUM',
+    'TVC:USOIL', 'TVC:UKOIL', 'TVC:NG1!',
+    'TVC:HG1!', 'TVC:ZC1!', 'TVC:ZW1!'
   ]
-};
-
-const ASSET_PRESETS = {
-  'Forex': ['FX:EURUSD', 'FX:GBPUSD', 'FX:USDJPY', 'FX:AUDUSD'],
-  'Crypto': ['BITSTAMP:BTCUSD', 'BITSTAMP:ETHUSD', 'COINBASE:SOLUSD', 'BITSTAMP:XRPUSD'],
-  'Indices': ['SP:SPX', 'TVC:NDX', 'TVC:DJI', 'TVC:DE40'],
 };
 
 const INTERVALS = ['1', '3', '5', '15', '30', '45', '60', '120', '180', '240', 'D', 'W', 'M'];
@@ -54,23 +52,103 @@ interface LayoutSettings {
     minHeight: number;
 }
 
-const ChartGrid: React.FC<ChartGridProps> = ({ isDarkMode, isFocusMode = false, onToggleFocus, userProfile }) => {
-  const isPremium = userProfile?.plan === 'PREMIUM (MASTERS)';
-  const isFree = userProfile?.plan === 'FREE TIER (JOURNALER)';
+const ChartGrid: React.FC<ChartGridProps> = ({ isDarkMode, isFocusMode = false, onToggleFocus, userProfile, onUpdateProfile }) => {
+  const currentPlan = userProfile?.plan || APP_CONSTANTS.PLANS.FREE;
+  const features = PLAN_FEATURES[currentPlan];
+  const canUseMultiChart = features.multiChartLayouts;
 
-  const [layout, setLayout] = useLocalStorage<'single' | 'split-v' | 'split-h' | 'quad' | 'focus-main'>('jfx_chart_layout', 'split-v');
-  const [charts, setCharts] = useLocalStorage('jfx_chart_config', [
+  const { addToast } = useToast();
+
+  const [layout, setLayout] = useLocalStorage<'single' | 'split-v' | 'split-h' | 'quad' | 'focus-main'>('jfx_chart_layout', userProfile?.chartConfig?.layout || 'single');
+  
+  // Force single layout for non-premium users
+  useEffect(() => {
+    if (!canUseMultiChart && layout !== 'single') {
+        setLayout('single');
+    }
+  }, [canUseMultiChart, layout, setLayout]);
+
+  const handleLayoutChange = (newLayout: typeof layout) => {
+      if (canUseMultiChart) {
+          setLayout(newLayout);
+      } else {
+          addToast({
+              type: 'warning',
+              title: 'Feature Locked',
+              message: 'Multi-chart layouts are available on higher tier plans. Upgrade to unlock.',
+              duration: 4000
+          });
+      }
+  };
+
+  const [charts, setCharts] = useLocalStorage('jfx_chart_config', userProfile?.chartConfig?.charts || [
       { id: 1, symbol: "FX:EURUSD", interval: "15" },  
       { id: 2, symbol: "FX:EURUSD", interval: "60" },  
       { id: 3, symbol: "OANDA:XAUUSD", interval: "240" }, 
       { id: 4, symbol: "BITSTAMP:BTCUSD", interval: "D" }, 
   ]);
 
-  const [layoutSettings, setLayoutSettings] = useLocalStorage<LayoutSettings>('jfx_chart_layout_settings', {
+  const [layoutSettings, setLayoutSettings] = useLocalStorage<LayoutSettings>('jfx_chart_layout_settings', userProfile?.chartConfig?.layoutSettings || {
       splitRatio: 50,
       isScrollable: false,
       minHeight: 500
   });
+
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Auto-save debounced effect
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      // Don't auto-save on first mount if config matches userProfile
+      const currentConfig = JSON.stringify({ layout, charts, layoutSettings });
+      const savedConfig = JSON.stringify(userProfile.chartConfig);
+      
+      if (currentConfig === savedConfig) return;
+
+      try {
+          setIsSaving(true);
+          await onUpdateProfile({
+              ...userProfile,
+              chartConfig: { layout, charts, layoutSettings }
+          });
+      } catch (error) {
+          console.error("Auto-save failed:", error);
+      } finally {
+          setIsSaving(false);
+      }
+    }, 3000); // 3 second debounce
+
+    return () => clearTimeout(timer);
+  }, [layout, charts, layoutSettings, onUpdateProfile, userProfile]);
+
+  const handleSaveConfig = async () => {
+      try {
+          setIsSaving(true);
+          await onUpdateProfile({
+              ...userProfile,
+              chartConfig: {
+                  layout,
+                  charts,
+                  layoutSettings
+              }
+          });
+          addToast({
+              type: 'success',
+              title: 'Layout Saved',
+              message: 'Your chart configuration has been saved to your profile.',
+              duration: 3000
+          });
+      } catch (error) {
+          addToast({
+              type: 'error',
+              title: 'Save Failed',
+              message: 'Failed to save chart configuration.',
+              duration: 4000
+          });
+      } finally {
+          setIsSaving(false);
+      }
+  };
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const [activeChartId, setActiveChartId] = useState(1);
@@ -179,30 +257,28 @@ const ChartGrid: React.FC<ChartGridProps> = ({ isDarkMode, isFocusMode = false, 
       }
   };
 
-  const getGridStyle = () => {
+  const getGridStyle = (): React.CSSProperties => {
       const { splitRatio } = layoutSettings;
-      // Use any to avoid TypeScript errors with dynamic CSS property assignment in some environments
-      const styles: any = {
+      const styles: React.CSSProperties = {
           height: layoutSettings.isScrollable ? 'auto' : '100%',
           minHeight: '100%',
+          display: 'grid', // Ensure grid is always active
       };
 
       if (layout === 'split-v') {
-          styles.display = 'grid';
           styles.gridTemplateColumns = `${splitRatio}% 1fr`;
       } else if (layout === 'split-h') {
-          styles.display = 'grid';
           styles.gridTemplateRows = `${splitRatio}% 1fr`;
       } else if (layout === 'focus-main') {
-          styles.display = 'grid';
           styles.gridTemplateColumns = `${splitRatio}% 1fr`;
       }
+      // 'single' and 'quad' rely on Tailwind classes grid-cols-1/2 and grid-rows-1/2
+      
       return styles;
   };
 
-  const getItemStyle = (id: number) => {
-      // Use any to avoid TypeScript errors with dynamic CSS property assignment in some environments
-      const styles: any = {};
+  const getItemStyle = (id: number): React.CSSProperties => {
+      const styles: React.CSSProperties = {};
       if (layoutSettings.isScrollable) {
           styles.minHeight = `${layoutSettings.minHeight}px`;
       }
@@ -246,22 +322,29 @@ const ChartGrid: React.FC<ChartGridProps> = ({ isDarkMode, isFocusMode = false, 
                         </div>
                         <button 
                             onClick={() => handleSymbolChange(symbolInput)}
+                            title="Load Symbol"
                             className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all active:scale-95 shadow-lg shadow-indigo-600/20"
                         >
                             <RefreshCw size={12} /> Load
                         </button>
-                        <div className={`w-px h-6 mx-1 ${isDarkMode ? 'bg-zinc-800' : 'bg-slate-200'}`} />
-                        <button 
-                            onClick={() => setIsSynced(!isSynced)}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
-                                isSynced 
-                                ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' 
-                                : isDarkMode ? 'text-zinc-500 border-transparent hover:bg-zinc-800' : 'text-slate-500 border-transparent hover:bg-slate-100'
-                            }`}
-                        >
-                            {isSynced ? <Link2 size={14} /> : <Link2Off size={14} />}
-                            <span className="hidden xl:inline">{isSynced ? 'Synced' : 'Independent'}</span>
-                        </button>
+                        
+                        {layout !== 'single' && (
+                            <>
+                                <div className={`w-px h-6 mx-1 ${isDarkMode ? 'bg-zinc-800' : 'bg-slate-200'}`} />
+                                <button 
+                                    onClick={() => setIsSynced(!isSynced)}
+                                    title={isSynced ? "Disable Symbol Sync" : "Enable Symbol Sync"}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                                        isSynced 
+                                        ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' 
+                                        : isDarkMode ? 'text-zinc-500 border-transparent hover:bg-zinc-800' : 'text-slate-500 border-transparent hover:bg-slate-100'
+                                    }`}
+                                >
+                                    {isSynced ? <Link2 size={14} /> : <Link2Off size={14} />}
+                                    <span className="hidden xl:inline">{isSynced ? 'Synced' : 'Independent'}</span>
+                                </button>
+                            </>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -269,24 +352,52 @@ const ChartGrid: React.FC<ChartGridProps> = ({ isDarkMode, isFocusMode = false, 
                             <div className="px-2 opacity-30 border-r border-zinc-700/50 mr-1">
                                 <Clock size={14} />
                             </div>
-                            <button onClick={() => applyTimeframePreset('Scalp')} className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${isDarkMode ? 'hover:bg-zinc-800 text-zinc-500' : 'hover:bg-slate-100 text-slate-500'}`}>Scalp</button>
-                            <button onClick={() => applyTimeframePreset('Intraday')} className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${isDarkMode ? 'hover:bg-zinc-800 text-zinc-500' : 'hover:bg-slate-100 text-slate-500'}`}>Day</button>
-                            <button onClick={() => applyTimeframePreset('Swing')} className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${isDarkMode ? 'hover:bg-zinc-800 text-zinc-500' : 'hover:bg-slate-100 text-slate-500'}`}>Swing</button>
+                            <button onClick={() => applyTimeframePreset('Scalp')} title="Scalp Preset (1m, 5m, 15m, 1h)" className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${isDarkMode ? 'hover:bg-zinc-800 text-zinc-500' : 'hover:bg-slate-100 text-slate-500'}`}>Scalp</button>
+                            <button onClick={() => applyTimeframePreset('Intraday')} title="Day Trading Preset (5m, 15m, 1h, 4h)" className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${isDarkMode ? 'hover:bg-zinc-800 text-zinc-500' : 'hover:bg-slate-100 text-slate-500'}`}>Day</button>
+                            <button onClick={() => applyTimeframePreset('Swing')} title="Swing Trading Preset (1h, 4h, D, W)" className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${isDarkMode ? 'hover:bg-zinc-800 text-zinc-500' : 'hover:bg-slate-100 text-slate-500'}`}>Swing</button>
                             <div className={`w-px h-4 mx-1 ${isDarkMode ? 'bg-zinc-700' : 'bg-slate-300'}`} />
-                            <button onClick={() => handleZoom('out')} className={`p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}><ZoomOut size={14} /></button>
-                            <button onClick={() => handleZoom('in')} className={`p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}><ZoomIn size={14} /></button>
+                            <button onClick={() => handleZoom('out')} title="Zoom Out Timeframe" className={`p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}><ZoomOut size={14} /></button>
+                            <button onClick={() => handleZoom('in')} title="Zoom In Timeframe" className={`p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors ${isDarkMode ? 'text-zinc-400' : 'text-zinc-600'}`}><ZoomIn size={14} /></button>
                         </div>
 
                         <div className={`flex items-center p-1 rounded-lg border ${isDarkMode ? 'bg-[#09090b] border-[#27272a]' : 'bg-slate-50 border-slate-200'}`}>
-                            <button onClick={() => setLayout('single')} className={`p-1.5 rounded ${layout === 'single' ? 'bg-indigo-500 text-white shadow' : 'text-zinc-500'}`}><Square size={16}/></button>
-                            <button onClick={() => setLayout('split-v')} className={`p-1.5 rounded ${layout === 'split-v' ? 'bg-indigo-500 text-white shadow' : 'text-zinc-500'}`}><Layout size={16} className="rotate-90"/></button>
-                            <button onClick={() => setLayout('split-h')} className={`p-1.5 rounded ${layout === 'split-h' ? 'bg-indigo-500 text-white shadow' : 'text-zinc-500'}`}><Rows size={16}/></button>
-                            <button onClick={() => setLayout('quad')} className={`p-1.5 rounded ${layout === 'quad' ? 'bg-indigo-500 text-white shadow' : 'text-zinc-500'}`}><Grid size={16}/></button>
-                            <button onClick={() => setLayout('focus-main')} className={`p-1.5 rounded ${layout === 'focus-main' ? 'bg-indigo-500 text-white shadow' : 'text-zinc-500'}`}><SidebarIcon size={16} className="rotate-180"/></button>
+                            <button 
+                                onClick={() => setLayout('single')} 
+                                title="Single Chart Layout" 
+                                className={`p-1.5 rounded ${layout === 'single' ? 'bg-indigo-500 text-white shadow' : 'text-zinc-500'}`}
+                            >
+                                <Square size={16}/>
+                            </button>
+                            
+                            {/* Premium Only Layouts */}
+                            {[
+                                { id: 'split-v', icon: Layout, title: 'Vertical Split', extraClass: 'rotate-90' },
+                                { id: 'split-h', icon: Rows, title: 'Horizontal Split' },
+                                { id: 'quad', icon: Grid, title: 'Quad Grid' },
+                                { id: 'focus-main', icon: SidebarIcon, title: 'Main Focus', extraClass: 'rotate-180' }
+                            ].map((l) => (
+                                <button 
+                                    key={l.id}
+                                    onClick={() => handleLayoutChange(l.id as any)} 
+                                    title={canUseMultiChart ? `${l.title} Layout` : `${l.title} (Locked)`}
+                                    className={`p-1.5 rounded relative transition-all ${
+                                        layout === l.id 
+                                        ? 'bg-indigo-500 text-white shadow' 
+                                        : !canUseMultiChart ? 'text-zinc-500/40 opacity-60' : 'text-zinc-500 hover:bg-black/5 dark:hover:bg-white/5'
+                                    }`}
+                                >
+                                    <l.icon size={16} className={l.extraClass}/>
+                                    {!canUseMultiChart && (
+                                        <div className="absolute -top-1 -right-1 bg-amber-500 rounded-full p-0.5 shadow-sm scale-75">
+                                            <Lock size={8} fill="white" className="text-white" />
+                                        </div>
+                                    )}
+                                </button>
+                            ))}
                         </div>
 
                         <div className="relative" ref={settingsRef}>
-                            <button onClick={() => setIsSettingsOpen(!isSettingsOpen)} className={`p-2 rounded-lg transition-colors ${isSettingsOpen ? 'bg-indigo-500 text-white' : isDarkMode ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-slate-100 text-slate-500'}`}><SlidersHorizontal size={20} /></button>
+                            <button onClick={() => setIsSettingsOpen(!isSettingsOpen)} title="Layout Dimensions & Split Settings" className={`p-2 rounded-lg transition-colors ${isSettingsOpen ? 'bg-indigo-500 text-white' : isDarkMode ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-slate-100 text-slate-500'}`}><SlidersHorizontal size={20} /></button>
                             {isSettingsOpen && (
                                 <div className={`absolute top-full right-0 mt-2 w-64 p-4 rounded-xl border shadow-2xl z-50 animate-in fade-in zoom-in-95 origin-top-right ${isDarkMode ? 'bg-[#121215] border-[#27272a]' : 'bg-white border-slate-200'}`}>
                                     <h4 className="text-xs font-bold uppercase tracking-wider opacity-50 mb-3">Dimensions</h4>
@@ -311,13 +422,22 @@ const ChartGrid: React.FC<ChartGridProps> = ({ isDarkMode, isFocusMode = false, 
                             )}
                         </div>
                         <div className={`w-px h-6 mx-2 ${isDarkMode ? 'bg-zinc-800' : 'bg-slate-200'}`} />
-                        <button onClick={onToggleFocus} className={`p-2 rounded-lg transition-colors ${isFocusMode ? 'bg-indigo-500 text-white' : isDarkMode ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-slate-100 text-slate-500'}`}><Minimize2 size={20} /></button>
-                        <button onClick={() => setIsWatchlistOpen(!isWatchlistOpen)} className={`p-2 rounded-lg transition-colors ${isWatchlistOpen ? 'bg-zinc-800 text-white' : isDarkMode ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-slate-100 text-slate-500'}`}><List size={20} /></button>
+                        <button 
+                            onClick={handleSaveConfig} 
+                            disabled={isSaving}
+                            title="Save Current Layout to Profile" 
+                            className={`p-2 rounded-lg transition-all flex items-center gap-2 ${isSaving ? 'opacity-50' : isDarkMode ? 'hover:bg-zinc-800 text-teal-500' : 'hover:bg-slate-100 text-teal-600'}`}
+                        >
+                            {isSaving ? <RefreshCw size={20} className="animate-spin" /> : <Plus size={20} />}
+                            <span className="text-xs font-bold hidden md:inline">Save Config</span>
+                        </button>
+                        <button onClick={onToggleFocus} title={isFocusMode ? "Exit Focus Mode" : "Enter Focus Mode"} className={`p-2 rounded-lg transition-colors ${isFocusMode ? 'bg-indigo-500 text-white' : isDarkMode ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-slate-100 text-slate-500'}`}><Minimize2 size={20} /></button>
+                        <button onClick={() => setIsWatchlistOpen(!isWatchlistOpen)} title="Toggle Watchlist Sidebar" className={`p-2 rounded-lg transition-colors ${isWatchlistOpen ? 'bg-zinc-800 text-white' : isDarkMode ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-slate-100 text-slate-500'}`}><List size={20} /></button>
                     </div>
                 </div>
 
                 <div className={`flex-1 overflow-auto relative p-1 ${isDarkMode ? 'bg-[#09090b]' : 'bg-slate-100'}`}>
-                    <div className={`w-full h-full gap-1 transition-all duration-300 ${getGridClass()}`} style={getGridStyle()}>
+                    <div className={`w-full h-full gap-1 transition-all duration-300 grid ${getGridClass()}`} style={getGridStyle()}>
                         {charts.map((chart) => {
                             if (!isVisible(chart.id)) return null;
                             const isActive = activeChartId === chart.id;
@@ -343,8 +463,9 @@ const ChartGrid: React.FC<ChartGridProps> = ({ isDarkMode, isFocusMode = false, 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
                     {sortedWatchlist.map(symbol => {
                         const isStarred = starredSymbols.includes(symbol);
+                        const displaySymbol = symbol.split(':')[1] || symbol;
                         return (
-                            <button key={symbol} onClick={() => handleSymbolChange(symbol)} className={`w-full flex items-center justify-between p-3 rounded-lg text-left group transition-all ${isDarkMode ? 'hover:bg-zinc-800 text-zinc-300' : 'hover:bg-slate-50 text-slate-700'}`}><span className="font-bold text-sm">{symbol}</span><div onClick={(e) => toggleStar(symbol, e)} className={`opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 ${isStarred ? 'opacity-100 text-amber-400' : 'text-zinc-500'}`}><Star size={14} fill={isStarred ? "currentColor" : "none"} /></div></button>
+                            <button key={symbol} onClick={() => handleSymbolChange(symbol)} className={`w-full flex items-center justify-between p-3 rounded-lg text-left group transition-all ${isDarkMode ? 'hover:bg-zinc-800 text-zinc-300' : 'hover:bg-slate-50 text-slate-700'}`}><span className="font-bold text-sm">{displaySymbol}</span><div onClick={(e) => toggleStar(symbol, e)} className={`opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 ${isStarred ? 'opacity-100 text-amber-400' : 'text-zinc-500'}`}><Star size={14} fill={isStarred ? "currentColor" : "none"} /></div></button>
                         )
                     })}
                 </div>

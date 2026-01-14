@@ -1,6 +1,7 @@
 
 import { supabase } from '../lib/supabase';
-import { Trade, Note, DailyBias, UserProfile, Goal } from '../types';
+import { Trade, Note, DailyBias, UserProfile, Goal, StrategyDiagram } from '../types';
+import { APP_CONSTANTS, PLAN_FEATURES } from '../lib/constants';
 
 // Helper to map DB Trade to App Trade
 export const mapTradeFromDB = (dbTrade: any): Trade => ({
@@ -97,8 +98,9 @@ export const uploadNoteImage = async (file: File): Promise<string | null> => {
       .eq('id', user.id)
       .single();
 
-    if (profile?.plan === 'FREE TIER (JOURNALER)') {
-      alert('Image uploads are not available on the Free Tier. Please upgrade to Pro.');
+    const currentPlan = profile?.plan || APP_CONSTANTS.PLANS.FREE;
+    if (!PLAN_FEATURES[currentPlan]?.allowImageUploads) {
+      alert('Image uploads are not available on your current plan. Please upgrade.');
       return null;
     }
 
@@ -197,6 +199,21 @@ export const dataService = {
 
     if (error) throw error;
     return mapTradeFromDB(data);
+  },
+
+  async batchAddTrades(trades: Trade[]) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const tradesToSave = trades.map(t => mapTradeToDB(t, user.id));
+
+    const { data, error } = await supabase
+      .from('trades')
+      .insert(tradesToSave)
+      .select();
+
+    if (error) throw error;
+    return (data || []).map(mapTradeFromDB);
   },
 
   async updateTrade(trade: Trade) {
@@ -443,6 +460,9 @@ export const dataService = {
     if (profile.syncKey !== undefined) dbProfile.sync_key = profile.syncKey;
     if (profile.eaConnected !== undefined) dbProfile.ea_connected = profile.eaConnected;
     if (profile.avatarUrl !== undefined) dbProfile.avatar_url = profile.avatarUrl;
+    if (profile.themePreference !== undefined) dbProfile.theme_preference = profile.themePreference;
+    if (profile.chartConfig !== undefined) dbProfile.chart_config = profile.chartConfig;
+    if (profile.keepChartsAlive !== undefined) dbProfile.keep_charts_alive = profile.keepChartsAlive;
 
     // Always update updated_at if possible, but we'll let the DB handle it if the column exists
     // To be safe against the reported error, we only include it if we are sure it's needed 
@@ -455,7 +475,23 @@ export const dataService = {
         ...dbProfile
       });
 
-    if (error) throw error;
+    if (error) {
+      // 42703 is the PostgreSQL error code for 'column does not exist'
+      // If theme_preference is the issue, retry without it
+      if ((error as any).code === '42703' && dbProfile.theme_preference !== undefined) {
+        console.warn('theme_preference column missing, retrying update without it');
+        const { theme_preference, ...safeProfile } = dbProfile;
+        const { error: retryError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: user.id,
+            ...safeProfile
+          });
+        if (retryError) throw retryError;
+      } else {
+        throw error;
+      }
+    }
 
   },
 
@@ -469,6 +505,66 @@ export const dataService = {
 
     if (error) throw error;
     return data;
+  },
+
+  // --- Strategy Diagrams ---
+  async getDiagrams() {
+    const { data, error } = await supabase
+      .from('strategy_diagrams')
+      .select('*')
+      .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+    return (data || []).map((d: any) => ({
+      id: d.id,
+      name: d.name,
+      code: d.code,
+      category: d.category,
+      description: d.description,
+      createdAt: d.created_at,
+      updatedAt: d.updated_at
+    }));
+  },
+
+  async saveDiagram(diagram: Partial<StrategyDiagram>) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated');
+
+    const dbDiagram = {
+      user_id: user.id,
+      name: diagram.name,
+      code: diagram.code,
+      category: diagram.category,
+      description: diagram.description,
+      updated_at: new Date().toISOString()
+    };
+
+    if (diagram.id) {
+      const { data, error } = await supabase
+        .from('strategy_diagrams')
+        .update(dbDiagram)
+        .eq('id', diagram.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    } else {
+      const { data, error } = await supabase
+        .from('strategy_diagrams')
+        .insert(dbDiagram)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    }
+  },
+
+  async deleteDiagram(id: string) {
+    const { error } = await supabase
+      .from('strategy_diagrams')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
   }
 };
 

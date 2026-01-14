@@ -5,7 +5,7 @@ import {
     Target, BarChart3, Award, AlertOctagon,
     ArrowLeftRight, GitCompare, MoreVertical, Star, Coins,
     LayoutDashboard, LineChart, ShieldAlert, X, HelpCircle, GripVertical,
-    ArrowRightLeft, Crown, Flame, Snowflake, Lock
+    ArrowRightLeft, Crown, Flame, Snowflake, Lock, Clock, Sparkles
 } from 'lucide-react';
 import {
     DndContext,
@@ -24,8 +24,10 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { SortableWidget } from './ui/SortableWidget';
+import { Tooltip } from './ui/Tooltip';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Select } from './Select';
+import { APP_CONSTANTS, PLAN_FEATURES } from '../lib/constants';
 
 interface AnalyticsProps {
     isDarkMode: boolean;
@@ -34,6 +36,114 @@ interface AnalyticsProps {
     onViewChange: (view: string) => void;
     eaSession?: any;
 }
+
+const BestTimeWidget = ({ trades = [], isDarkMode, currencySymbol = '$', onInfoClick }: { trades: Trade[], isDarkMode: boolean, currencySymbol: string, onInfoClick?: () => void }) => {
+    const [hoveredHour, setHoveredHour] = useState<number | null>(null);
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+    const hourlyData = useMemo(() => {
+        const safeTrades = trades || [];
+        const hours = Array.from({ length: 24 }, (_, i) => ({ hour: i, pnl: 0, count: 0 }));
+
+        safeTrades.forEach(t => {
+            const date = new Date(`${t.date}T${t.time || '00:00'}`);
+            const hour = date.getHours();
+            if (hours[hour]) {
+                hours[hour].pnl += t.pnl;
+                hours[hour].count += 1;
+            }
+        });
+
+        return hours;
+    }, [trades]);
+
+    const maxPnl = Math.max(...hourlyData.map(d => Math.abs(d.pnl)), 10);
+    const hoveredData = hoveredHour !== null ? hourlyData[hoveredHour] : null;
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setMousePos({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        });
+    };
+
+    return (
+        <div 
+            onMouseMove={handleMouseMove}
+            className={`p-8 rounded-[32px] border flex flex-col h-full min-h-[350px] relative ${isDarkMode ? 'bg-[#18181b] border-zinc-800 shadow-2xl' : 'bg-white border-slate-200 shadow-md'}`}
+        >
+            <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-bold tracking-tight">Hourly Performance</h3>
+                    <Tooltip content="Analyzes your trading performance based on the hour of the day to identify your most profitable sessions." isDarkMode={isDarkMode}>
+                        <svg 
+                            onClick={onInfoClick}
+                            xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-circle-question-mark opacity-40 cursor-help hover:opacity-100 transition-opacity" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>
+                    </Tooltip>
+                </div>
+                <Clock size={16} className="opacity-30" />
+            </div>
+
+            <div className="flex-1 flex items-end gap-1 relative">
+                {/* Zero Line */}
+                <div className="absolute left-0 right-0 h-px bg-zinc-500/20 z-0" style={{ top: '50%' }} />
+
+                {hourlyData.map((d) => {
+                    const heightPercent = (Math.abs(d.pnl) / maxPnl) * 45; // Max 45% height (leaving 10% gap)
+                    const isPositive = d.pnl >= 0;
+                    const isHovered = hoveredHour === d.hour;
+
+                    return (
+                        <div
+                            key={d.hour}
+                            className="flex-1 flex flex-col items-center justify-center h-full relative group cursor-pointer"
+                            onMouseEnter={() => setHoveredHour(d.hour)}
+                            onMouseLeave={() => setHoveredHour(null)}
+                        >
+                            {/* Bar */}
+                            <div
+                                className={`w-full max-w-[12px] rounded-sm transition-all duration-300 relative z-10 ${isPositive ? 'bg-emerald-500' : 'bg-rose-500'} ${isHovered ? 'brightness-110 scale-x-125 shadow-lg' : 'opacity-80'}`}
+                                style={{
+                                    height: `${Math.max(2, heightPercent)}%`,
+                                    marginBottom: isPositive ? '50%' : 'auto',
+                                    marginTop: isPositive ? 'auto' : '50%',
+                                }}
+                            />
+                            
+                            {/* Hour Label (Every 4 hours) */}
+                            {d.hour % 4 === 0 && (
+                                <span className="absolute bottom-0 text-[9px] font-mono opacity-30">{d.hour}h</span>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Tooltip Overlay (Floating) */}
+            {hoveredData && (
+                <div 
+                    className="fixed pointer-events-none z-50"
+                    style={{ 
+                        left: mousePos.x + 20, 
+                        top: mousePos.y - 40,
+                        position: 'absolute'
+                    }}
+                >
+                    <div className={`px-4 py-2 rounded-xl border backdrop-blur-md shadow-xl flex items-center gap-4 animate-in fade-in zoom-in duration-200 ${isDarkMode ? 'bg-[#09090b]/90 border-zinc-700' : 'bg-white/90 border-slate-200'}`}>
+                        <div className="text-xs font-black uppercase tracking-wider opacity-60 w-12">{hoveredData.hour}:00</div>
+                        <div className={`text-lg font-black ${hoveredData.pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {hoveredData.pnl >= 0 ? '+' : ''}{currencySymbol}{hoveredData.pnl.toLocaleString()}
+                        </div>
+                        <div className="text-[10px] font-bold opacity-40 uppercase tracking-widest border-l border-white/10 pl-4">
+                            {hoveredData.count} Trades
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 const ComparisonView = ({ trades = [], isDarkMode, currencySymbol = '$' }: { trades: Trade[], isDarkMode: boolean, currencySymbol: string }) => {
     const symbols = useMemo(() => {
@@ -418,8 +528,9 @@ const ExecutionPerformanceTable = ({ trades = [], isDarkMode, currencySymbol = '
     );
 };
 
-const MonthlyPerformanceWidget = ({ trades = [], isDarkMode, currencySymbol = '$' }: { trades: Trade[], isDarkMode: boolean, currencySymbol: string }) => {
+const MonthlyPerformanceWidget = ({ trades = [], isDarkMode, currencySymbol = '$', onInfoClick }: { trades: Trade[], isDarkMode: boolean, currencySymbol: string, onInfoClick?: () => void }) => {
     const [hoveredMonth, setHoveredMonth] = useState<string | null>(null);
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
     const data = useMemo(() => {
         const safeTrades = trades || [];
@@ -463,10 +574,28 @@ const MonthlyPerformanceWidget = ({ trades = [], isDarkMode, currencySymbol = '$
 
     const hoveredData = data.find(d => d.month === hoveredMonth);
 
+    const handleMouseMove = (e: React.MouseEvent) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setMousePos({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        });
+    };
+
     return (
-        <div className={`p-8 rounded-[32px] border flex flex-col h-full min-h-[400px] relative ${isDarkMode ? 'bg-[#18181b] border-zinc-800 shadow-2xl' : 'bg-white border-slate-200 shadow-md'}`}>
+        <div 
+            onMouseMove={handleMouseMove}
+            className={`p-8 rounded-[32px] border flex flex-col h-full min-h-[400px] relative ${isDarkMode ? 'bg-[#18181b] border-zinc-800 shadow-2xl' : 'bg-white border-slate-200 shadow-md'}`}
+        >
             <div className="flex items-center justify-between mb-8">
-                <h3 className="text-xl font-bold tracking-tight">Monthly P&L vs Maximum Drawdown</h3>
+                <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-bold tracking-tight">Monthly P&L vs Maximum Drawdown</h3>
+                    <Tooltip content="Compares your net profit against the maximum equity drop for each month." isDarkMode={isDarkMode}>
+                        <svg 
+                            onClick={onInfoClick}
+                            xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-circle-question-mark opacity-40 cursor-help hover:opacity-100 transition-opacity" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>
+                    </Tooltip>
+                </div>
                 <MoreVertical size={16} className="opacity-30" />
             </div>
 
@@ -522,18 +651,26 @@ const MonthlyPerformanceWidget = ({ trades = [], isDarkMode, currencySymbol = '$
 
             {/* Tooltip */}
             {hoveredData && hoveredData.hasTrades && (
-                <div className={`absolute right-8 top-16 p-4 rounded-xl z-30 min-w-[160px] shadow-2xl border backdrop-blur-md animate-in fade-in zoom-in duration-200 ${isDarkMode ? 'bg-[#09090b]/90 border-zinc-700' : 'bg-white/90 border-slate-200'}`}>
-                    <div className="font-bold text-sm mb-3 border-b border-white/10 pb-2">{hoveredData.month} Performance</div>
-                    <div className="space-y-2 text-xs">
-                        <div className="flex justify-between">
-                            <span className="opacity-60">Net P&L</span>
-                            <span className={`font-bold ${hoveredData.pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                {hoveredData.pnl >= 0 ? '+' : ''}{currencySymbol}{hoveredData.pnl.toLocaleString()}
-                            </span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="opacity-60">Max Drawdown</span>
-                            <span className="text-amber-500 font-bold">-{currencySymbol}{Math.abs(hoveredData.dd).toLocaleString()}</span>
+                <div 
+                    className="absolute pointer-events-none z-50"
+                    style={{ 
+                        left: mousePos.x + 20, 
+                        top: mousePos.y - 40
+                    }}
+                >
+                    <div className={`p-4 rounded-xl shadow-2xl border backdrop-blur-md animate-in fade-in zoom-in duration-200 min-w-[160px] ${isDarkMode ? 'bg-[#09090b]/90 border-zinc-700' : 'bg-white/90 border-slate-200'}`}>
+                        <div className="font-bold text-sm mb-3 border-b border-white/10 pb-2">{hoveredData.month} Performance</div>
+                        <div className="space-y-2 text-xs">
+                            <div className="flex justify-between">
+                                <span className="opacity-60">Net P&L</span>
+                                <span className={`font-bold ${hoveredData.pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                    {hoveredData.pnl >= 0 ? '+' : ''}{currencySymbol}{hoveredData.pnl.toLocaleString()}
+                                </span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="opacity-60">Max Drawdown</span>
+                                <span className="text-amber-500 font-bold">-{currencySymbol}{Math.abs(hoveredData.dd).toLocaleString()}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -553,8 +690,17 @@ const MonthlyPerformanceWidget = ({ trades = [], isDarkMode, currencySymbol = '$
     );
 };
 
-const CurrencyStrengthMeter = ({ isDarkMode, trades = [] }: { isDarkMode: boolean, trades: Trade[] }) => {
+const CurrencyStrengthMeter = ({ isDarkMode, trades = [], onInfoClick }: { isDarkMode: boolean, trades: Trade[], onInfoClick?: () => void }) => {
     const [hoveredCur, setHoveredCur] = useState<string | null>(null);
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setMousePos({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        });
+    };
 
     const strengths = useMemo(() => {
         const safeTrades = trades || [];
@@ -634,10 +780,20 @@ const CurrencyStrengthMeter = ({ isDarkMode, trades = [] }: { isDarkMode: boolea
     const hoveredData = strengths.find(s => s.cur === hoveredCur);
 
     return (
-        <div className={`p-8 rounded-[32px] border flex flex-col h-full min-h-[400px] relative ${isDarkMode ? 'bg-[#18181b] border-zinc-800 shadow-2xl' : 'bg-white border-slate-200 shadow-md'}`}>
+        <div 
+            onMouseMove={handleMouseMove}
+            className={`p-8 rounded-[32px] border flex flex-col h-full min-h-[400px] relative ${isDarkMode ? 'bg-[#18181b] border-zinc-800 shadow-2xl' : 'bg-white border-slate-200 shadow-md'}`}
+        >
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h3 className="text-xl font-bold tracking-tight">Currency Strength</h3>
+                    <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-bold tracking-tight">Currency Strength</h3>
+                        <Tooltip content="Measures the relative strength of currencies based on your trading P&L for each base and quote currency." isDarkMode={isDarkMode}>
+                            <svg 
+                                onClick={onInfoClick}
+                                xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-circle-question-mark opacity-40 cursor-help hover:opacity-100 transition-opacity" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>
+                        </Tooltip>
+                    </div>
                     <p className="text-[10px] uppercase font-bold tracking-widest opacity-40 mt-1">Relative Performance</p>
                 </div>
                 <MoreVertical size={16} className="opacity-30" />
@@ -680,11 +836,19 @@ const CurrencyStrengthMeter = ({ isDarkMode, trades = [] }: { isDarkMode: boolea
 
             {/* Tooltip */}
             {hoveredData && (
-                <div className={`absolute right-8 top-16 p-4 rounded-xl z-30 min-w-[140px] shadow-2xl border backdrop-blur-md animate-in fade-in zoom-in duration-200 ${isDarkMode ? 'bg-[#09090b]/90 border-zinc-700' : 'bg-white/90 border-slate-200'}`}>
-                    <div className="font-bold text-sm mb-2 border-b border-white/10 pb-1">{hoveredData.cur} Strength</div>
-                    <div className="flex justify-between items-center text-xs">
-                        <span className="opacity-60">Score</span>
-                        <span className="font-bold">{hoveredData.val.toFixed(2)} / 10</span>
+                <div 
+                    className="absolute pointer-events-none z-50"
+                    style={{ 
+                        left: mousePos.x + 20, 
+                        top: mousePos.y - 40
+                    }}
+                >
+                    <div className={`p-4 rounded-xl shadow-2xl border backdrop-blur-md animate-in fade-in zoom-in duration-200 min-w-[140px] ${isDarkMode ? 'bg-[#09090b]/90 border-zinc-700' : 'bg-white/90 border-slate-200'}`}>
+                        <div className="font-bold text-sm mb-2 border-b border-white/10 pb-1">{hoveredData.cur} Strength</div>
+                        <div className="flex justify-between items-center text-xs">
+                            <span className="opacity-60">Score</span>
+                            <span className="font-bold">{hoveredData.val.toFixed(2)} / 10</span>
+                        </div>
                     </div>
                 </div>
             )}
@@ -692,8 +856,17 @@ const CurrencyStrengthMeter = ({ isDarkMode, trades = [] }: { isDarkMode: boolea
     );
 };
 
-const TradeExitAnalysisWidget = ({ trades = [], isDarkMode }: { trades: Trade[], isDarkMode: boolean }) => {
+const TradeExitAnalysisWidget = ({ trades = [], isDarkMode, onInfoClick }: { trades: Trade[], isDarkMode: boolean, onInfoClick?: () => void }) => {
     const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setMousePos({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        });
+    };
 
     const exitData = useMemo(() => {
         const safeTrades = trades || [];
@@ -728,9 +901,19 @@ const TradeExitAnalysisWidget = ({ trades = [], isDarkMode }: { trades: Trade[],
     };
 
     return (
-        <div className={`p-8 rounded-[32px] border flex flex-col h-full min-h-[400px] relative ${isDarkMode ? 'bg-[#18181b] border-zinc-800 shadow-2xl' : 'bg-white border-slate-200 shadow-md'}`}>
+        <div 
+            onMouseMove={handleMouseMove}
+            className={`p-8 rounded-[32px] border flex flex-col h-full min-h-[400px] relative ${isDarkMode ? 'bg-[#18181b] border-zinc-800 shadow-2xl' : 'bg-white border-slate-200 shadow-md'}`}
+        >
             <div className="flex items-center justify-between mb-8">
-                <h3 className="text-xl font-bold tracking-tight">Trade Exit Analysis</h3>
+                <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-bold tracking-tight">Trade Exit Analysis</h3>
+                    <Tooltip content="Breakdown of how your trades were closed (TP, SL, BE) to analyze exit efficiency." isDarkMode={isDarkMode}>
+                        <svg 
+                            onClick={onInfoClick}
+                            xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-circle-question-mark opacity-40 cursor-help hover:opacity-100 transition-opacity" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>
+                    </Tooltip>
+                </div>
                 <MoreVertical size={16} className="opacity-30" />
             </div>
 
@@ -758,9 +941,15 @@ const TradeExitAnalysisWidget = ({ trades = [], isDarkMode }: { trades: Trade[],
                     })}
                 </svg>
 
-                {/* Tooltip Overlay */}
+                {/* Tooltip Overlay (Floating) */}
                 {hoveredData && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div 
+                        className="absolute pointer-events-none z-50"
+                        style={{ 
+                            left: mousePos.x - 40, 
+                            top: mousePos.y - 100
+                        }}
+                    >
                         <div className={`p-3 rounded-xl shadow-2xl border backdrop-blur-md animate-in fade-in zoom-in duration-200 ${isDarkMode ? 'bg-[#09090b]/90 border-zinc-700' : 'bg-white/90 border-slate-200'}`}>
                             <div className="text-center">
                                 <div className="text-[10px] font-bold uppercase tracking-widest opacity-60 mb-0.5">{hoveredData.label}</div>
@@ -784,11 +973,14 @@ const TradeExitAnalysisWidget = ({ trades = [], isDarkMode }: { trades: Trade[],
     );
 };
 
-const EquityCurveWidget = ({ trades = [], equityData = [], isDarkMode, currencySymbol = '$', currentBalanceOverride }: { trades: Trade[], equityData: number[], isDarkMode: boolean, currencySymbol: string, currentBalanceOverride?: number }) => {
+const EquityCurveWidget = ({ trades = [], equityData = [], isDarkMode, currencySymbol = '$', currentBalanceOverride, onInfoClick }: { trades: Trade[], equityData: number[], isDarkMode: boolean, currencySymbol: string, currentBalanceOverride?: number, onInfoClick?: () => void }) => {
+    const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
     const generatePath = (data: number[], width: number, height: number) => {
         if (!data || data.length < 2) return "";
-        const min = Math.min(...data);
-        const max = Math.max(...data);
+        const min = Math.min(...data, 0);
+        const max = Math.max(...data, 100);
         const range = max - min || 1;
         const points = data.map((val, i) => {
             const x = (i / (data.length - 1)) * width;
@@ -798,9 +990,23 @@ const EquityCurveWidget = ({ trades = [], equityData = [], isDarkMode, currencyS
         return `M ${points.join(' L ')}`;
     };
 
-    const currentEquity = currentBalanceOverride !== undefined ? currentBalanceOverride : (equityData?.length > 0 ? equityData[equityData.length - 1] : 0);
-    const initialEquity = equityData?.length > 0 ? equityData[0] : 0;
-    const totalReturn = currentEquity - initialEquity;
+    const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+        const svg = e.currentTarget;
+        const rect = svg.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const width = rect.width;
+        
+        const index = Math.round((x / width) * (equityData.length - 1));
+        if (index >= 0 && index < equityData.length) {
+            setHoverIndex(index);
+            setMousePos({ x: (index / (equityData.length - 1)) * 800, y: 0 }); // 800 is viewBox width
+        }
+    };
+
+    const min = Math.min(...equityData, 0);
+    const max = Math.max(...equityData, 100);
+    const range = max - min || 1;
+    const hoverY = hoverIndex !== null ? 240 - ((equityData[hoverIndex] - min) / range) * 240 : 0;
 
     return (
         <div className={`p-8 rounded-[32px] border flex flex-col min-h-[350px] relative overflow-hidden ${isDarkMode ? 'bg-[#18181b] border-zinc-800 shadow-2xl' : 'bg-white border-slate-200 shadow-md'}`}>
@@ -808,18 +1014,46 @@ const EquityCurveWidget = ({ trades = [], equityData = [], isDarkMode, currencyS
                 <div className="flex items-center gap-3">
                     <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-500"><TrendingUp size={20} /></div>
                     <div>
-                        <h3 className="font-bold text-lg leading-none">Equity Curve</h3>
+                        <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-lg leading-none">Equity Curve</h3>
+                            <Tooltip content="Visual representation of your account balance growth over time." isDarkMode={isDarkMode}>
+                                <svg 
+                                    onClick={onInfoClick}
+                                    xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-circle-question-mark opacity-40 cursor-help hover:opacity-100 transition-opacity" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>
+                            </Tooltip>
+                        </div>
                         <p className="text-[10px] uppercase font-bold tracking-widest opacity-40 mt-1.5">Account Balance Growth</p>
                     </div>
                 </div>
+
+                {hoverIndex !== null && (
+                    <div className="text-right animate-in fade-in zoom-in-95 duration-200">
+                        <div className={`text-xl font-black font-mono leading-none ${equityData[hoverIndex] >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {equityData[hoverIndex] >= 0 ? '+' : ''}{currencySymbol}{equityData[hoverIndex].toLocaleString()}
+                        </div>
+                        <div className="text-[10px] font-bold opacity-40 uppercase tracking-widest mt-1">Trade #{hoverIndex}</div>
+                    </div>
+                )}
             </div>
             <div className="flex-1 relative mt-4">
                 {equityData && equityData.length > 1 ? (
-                    <svg viewBox="0 0 800 240" className="w-full h-full overflow-visible drop-shadow-2xl">
+                    <svg 
+                        viewBox="0 0 800 240" 
+                        className="w-full h-full overflow-visible drop-shadow-2xl cursor-crosshair"
+                        onMouseMove={handleMouseMove}
+                        onMouseLeave={() => setHoverIndex(null)}
+                    >
                         <defs><linearGradient id="curveGradientAnalytics" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity="0.2" /><stop offset="100%" stopColor="#6366f1" stopOpacity="0" /></linearGradient></defs>
                         {[0, 0.25, 0.5, 0.75, 1].map((p, i) => (<line key={i} x1="0" y1={p * 240} x2="800" y2={p * 240} stroke="currentColor" strokeOpacity="0.05" />))}
                         <path d={generatePath(equityData, 800, 240)} fill="none" stroke="#6366f1" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
                         <path d={`${generatePath(equityData, 800, 240)} L 800,240 L 0,240 Z`} fill="url(#curveGradientAnalytics)" />
+                        
+                        {hoverIndex !== null && (
+                            <>
+                                <line x1={mousePos.x} y1="0" x2={mousePos.x} y2="240" stroke="#6366f1" strokeWidth="1" strokeDasharray="4 4" opacity="0.5" />
+                                <circle cx={mousePos.x} cy={hoverY} r="5" fill="#6366f1" stroke={isDarkMode ? "#18181b" : "white"} strokeWidth="2" />
+                            </>
+                        )}
                     </svg>
                 ) : (
                     <div className="h-full flex flex-col items-center justify-center opacity-20 text-center gap-4"><Activity size={48} strokeWidth={1} /><p className="text-sm font-medium">Insufficient trade data to generate curve</p></div>
@@ -832,8 +1066,17 @@ const EquityCurveWidget = ({ trades = [], equityData = [], isDarkMode, currencyS
 
 
 
-const PerformanceByPairWidget = ({ trades = [], isDarkMode, currencySymbol = '$' }: { trades: Trade[], isDarkMode: boolean, currencySymbol: string }) => {
+const PerformanceByPairWidget = ({ trades = [], isDarkMode, currencySymbol = '$', onInfoClick }: { trades: Trade[], isDarkMode: boolean, currencySymbol: string, onInfoClick?: () => void }) => {
     const [hoveredPair, setHoveredPair] = useState<string | null>(null);
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setMousePos({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        });
+    };
 
     const pairData = useMemo(() => {
         const safeTrades = trades || [];
@@ -872,17 +1115,23 @@ const PerformanceByPairWidget = ({ trades = [], isDarkMode, currencySymbol = '$'
     const range = (maxVal - minVal) * 1.1 || 1;
 
     // Calculate zero line position (percentage from top)
-    // Formula: The distance from maxVal to 0, divided by total range
     const zeroY = ((maxVal) / range) * 100;
 
     const hoveredData = hoveredPair ? pairData.find(d => d.pair === hoveredPair) : null;
 
     return (
-        <div className={`p-6 rounded-[24px] border flex flex-col min-h-[450px] ${isDarkMode ? 'bg-[#0d1117] border-zinc-800' : 'bg-white border-slate-200 shadow-md'}`}>
+        <div 
+            onMouseMove={handleMouseMove}
+            className={`p-6 rounded-[24px] border flex flex-col min-h-[450px] relative ${isDarkMode ? 'bg-[#0d1117] border-zinc-800' : 'bg-white border-slate-200 shadow-md'}`}
+        >
             <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold tracking-tight">Performance by Pair</h3>
-                <div className="flex items-center gap-3">
-                    <HelpCircle size={16} className="opacity-40 cursor-pointer hover:opacity-80" />
+                <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-bold tracking-tight">Performance by Pair</h3>
+                    <Tooltip content="Detailed profit and loss breakdown for each individual trading pair." isDarkMode={isDarkMode}>
+                        <svg 
+                            onClick={onInfoClick}
+                            xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-circle-question-mark opacity-40 cursor-help hover:opacity-100 transition-opacity" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>
+                    </Tooltip>
                 </div>
             </div>
 
@@ -963,24 +1212,32 @@ const PerformanceByPairWidget = ({ trades = [], isDarkMode, currencySymbol = '$'
                         </div>
                     </div>
 
-                    {/* Tooltip Overlay */}
+                    {/* Tooltip Overlay (Floating) */}
                     {hoveredData && (
-                        <div className={`absolute right-4 top-4 p-4 rounded-xl z-30 min-w-[160px] shadow-2xl border backdrop-blur-md animate-in fade-in zoom-in duration-200 ${isDarkMode ? 'bg-[#09090b]/90 border-zinc-700' : 'bg-white/90 border-slate-200'}`}>
-                            <div className="font-bold text-sm mb-3 border-b border-white/10 pb-2">{hoveredData.pair}</div>
-                            <div className="space-y-2 text-xs">
-                                <div className="flex justify-between">
-                                    <span className="opacity-60">Profit</span>
-                                    <span className="text-emerald-500 font-bold">+{currencySymbol}{hoveredData.profit.toLocaleString()}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="opacity-60">Loss</span>
-                                    <span className="text-rose-500 font-bold">-{currencySymbol}{hoveredData.loss.toLocaleString()}</span>
-                                </div>
-                                <div className="flex justify-between pt-2 border-t border-white/10 mt-2">
-                                    <span className="font-bold opacity-80">Net</span>
-                                    <span className={`font-bold ${hoveredData.net >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                        {hoveredData.net >= 0 ? '+' : ''}{currencySymbol}{hoveredData.net.toLocaleString()}
-                                    </span>
+                        <div 
+                            className="absolute pointer-events-none z-50"
+                            style={{ 
+                                left: mousePos.x - 120, 
+                                top: mousePos.y - 80
+                            }}
+                        >
+                            <div className={`p-4 rounded-xl shadow-2xl border backdrop-blur-md animate-in fade-in zoom-in duration-200 min-w-[160px] ${isDarkMode ? 'bg-[#09090b]/90 border-zinc-700' : 'bg-white/90 border-slate-200'}`}>
+                                <div className="font-bold text-sm mb-3 border-b border-white/10 pb-2">{hoveredData.pair}</div>
+                                <div className="space-y-2 text-xs">
+                                    <div className="flex justify-between">
+                                        <span className="opacity-60">Profit</span>
+                                        <span className="text-emerald-500 font-bold">+{currencySymbol}{hoveredData.profit.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="opacity-60">Loss</span>
+                                        <span className="text-rose-500 font-bold">-{currencySymbol}{hoveredData.loss.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between pt-2 border-t border-white/10 mt-2">
+                                        <span className="font-bold opacity-80">Net</span>
+                                        <span className={`font-bold ${hoveredData.net >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                            {hoveredData.net >= 0 ? '+' : ''}{currencySymbol}{hoveredData.net.toLocaleString()}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -991,7 +1248,7 @@ const PerformanceByPairWidget = ({ trades = [], isDarkMode, currencySymbol = '$'
     );
 };
 
-const LargestWinLossWidget = ({ trades = [], isDarkMode, currencySymbol = '$' }: { trades: Trade[], isDarkMode: boolean, currencySymbol: string }) => {
+const LargestWinLossWidget = ({ trades = [], isDarkMode, currencySymbol = '$', onInfoClick }: { trades: Trade[], isDarkMode: boolean, currencySymbol: string, onInfoClick?: () => void }) => {
     const { largestWin, largestLoss } = useMemo(() => {
         const safeTrades = trades || [];
         const wins = safeTrades.filter(t => t.pnl > 0);
@@ -1008,7 +1265,14 @@ const LargestWinLossWidget = ({ trades = [], isDarkMode, currencySymbol = '$' }:
     return (
         <div className={`p-6 rounded-[24px] border ${isDarkMode ? 'bg-[#0d1117] border-zinc-800' : 'bg-white border-slate-200 shadow-md'}`}>
             <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold tracking-tight">Largest Win vs Largest Loss</h3>
+                <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-bold tracking-tight">Largest Win vs Largest Loss</h3>
+                    <Tooltip content="Compares your single biggest winning trade against your single biggest losing trade." isDarkMode={isDarkMode}>
+                        <svg 
+                            onClick={onInfoClick}
+                            xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-circle-question-mark opacity-40 cursor-help hover:opacity-100 transition-opacity" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>
+                    </Tooltip>
+                </div>
             </div>
             <div className="space-y-6">
                 <div className="flex justify-between items-center">
@@ -1028,7 +1292,7 @@ const LargestWinLossWidget = ({ trades = [], isDarkMode, currencySymbol = '$' }:
     );
 };
 
-const MomentumStreakWidget = ({ trades = [], isDarkMode }: { trades: Trade[], isDarkMode: boolean }) => {
+const MomentumStreakWidget = ({ trades = [], isDarkMode, onInfoClick }: { trades: Trade[], isDarkMode: boolean, onInfoClick?: () => void }) => {
     const stats = useMemo(() => {
         const sortedTrades = [...trades].sort((a, b) => new Date(`${a.date}T${a.time || '00:00'}`).getTime() - new Date(`${b.date}T${b.time || '00:00'}`).getTime());
 
@@ -1091,7 +1355,14 @@ const MomentumStreakWidget = ({ trades = [], isDarkMode }: { trades: Trade[], is
         <div className={`p-6 rounded-[24px] border flex flex-col h-full min-h-[280px] ${isDarkMode ? 'bg-[#18181b] border-zinc-800 shadow-2xl' : 'bg-white border-slate-200 shadow-md'}`}>
             <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h3 className="text-lg font-bold tracking-tight">Trade Momentum</h3>
+                    <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-bold tracking-tight">Trade Momentum</h3>
+                        <Tooltip content="Tracks your recent trade outcomes and streaks to visualize psychological momentum." isDarkMode={isDarkMode}>
+                            <svg 
+                                onClick={onInfoClick}
+                                xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-circle-question-mark opacity-40 cursor-help hover:opacity-100 transition-opacity" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>
+                        </Tooltip>
+                    </div>
                     <p className="text-[10px] uppercase font-bold tracking-widest opacity-40 mt-0.5">Outcome History</p>
                 </div>
                 <div className="flex gap-4 text-[9px] font-black uppercase tracking-tighter">
@@ -1190,7 +1461,7 @@ const MomentumStreakWidget = ({ trades = [], isDarkMode }: { trades: Trade[], is
     );
 };
 
-const SymbolPerformanceWidget = ({ trades = [], isDarkMode, currencySymbol = '$' }: { trades: Trade[], isDarkMode: boolean, currencySymbol: string }) => {
+const SymbolPerformanceWidget = ({ trades = [], isDarkMode, currencySymbol = '$', onInfoClick }: { trades: Trade[], isDarkMode: boolean, currencySymbol: string, onInfoClick?: () => void }) => {
     const symbolStats = useMemo(() => {
         const safeTrades = trades || [];
         const stats: Record<string, { totalPnl: number; count: number }> = {};
@@ -1225,7 +1496,14 @@ const SymbolPerformanceWidget = ({ trades = [], isDarkMode, currencySymbol = '$'
 
     return (
         <div className={`p-6 rounded-[24px] border ${isDarkMode ? 'bg-[#0d1117] border-zinc-800' : 'bg-white border-slate-200 shadow-md'}`}>
-            <h3 className="text-lg font-bold tracking-tight mb-6">Symbol Performance</h3>
+            <div className="flex items-center gap-2 mb-6">
+                <h3 className="text-lg font-bold tracking-tight">Symbol Performance</h3>
+                <Tooltip content="Aggregated performance metrics for your most and least profitable symbols." isDarkMode={isDarkMode}>
+                    <svg 
+                        onClick={onInfoClick}
+                        xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-circle-question-mark opacity-40 cursor-help hover:opacity-100 transition-opacity" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>
+                </Tooltip>
+            </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {cards.map((card, i) => (
                     <div key={i} className={`p-4 rounded-xl border ${isDarkMode ? 'bg-[#18181b] border-zinc-700/50' : 'bg-slate-50 border-slate-200'}`}>
@@ -1243,7 +1521,10 @@ const SymbolPerformanceWidget = ({ trades = [], isDarkMode, currencySymbol = '$'
     );
 };
 
-const DrawdownOverTimeWidget = ({ trades = [], isDarkMode, userProfile }: { trades: Trade[], isDarkMode: boolean, userProfile: UserProfile }) => {
+const DrawdownOverTimeWidget = ({ trades = [], isDarkMode, userProfile, onInfoClick }: { trades: Trade[], isDarkMode: boolean, userProfile: UserProfile, onInfoClick?: () => void }) => {
+    const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
     const drawdownData = useMemo(() => {
         if (!trades || trades.length === 0) return [];
         const sortedTrades = [...trades].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -1262,6 +1543,19 @@ const DrawdownOverTimeWidget = ({ trades = [], isDarkMode, userProfile }: { trad
     const maxDrawdown = drawdownData.length > 0 ? Math.max(...drawdownData.map(d => d.drawdown)) : 0;
     const maxY = Math.max(maxDrawdown * 1.2, 1);
 
+    const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+        const svg = e.currentTarget;
+        const rect = svg.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const width = rect.width;
+        
+        const index = Math.round((x / width) * (drawdownData.length - 1));
+        if (index >= 0 && index < drawdownData.length) {
+            setHoverIndex(index);
+            setMousePos({ x: (index / (drawdownData.length - 1)) * 700, y: 0 }); // 700 is viewBox width
+        }
+    };
+
     const generateAreaPath = (data: typeof drawdownData, width: number, height: number) => {
         if (!data || data.length < 2) return { line: "", area: "" };
         const points = data.map((d, i) => {
@@ -1275,10 +1569,31 @@ const DrawdownOverTimeWidget = ({ trades = [], isDarkMode, userProfile }: { trad
     };
 
     const paths = generateAreaPath(drawdownData, 700, 200);
+    const hoverY = hoverIndex !== null ? (drawdownData[hoverIndex].drawdown / maxY) * 200 : 0;
 
     return (
-        <div className={`p-6 rounded-[24px] border flex flex-col min-h-[350px] ${isDarkMode ? 'bg-[#0d1117] border-zinc-800' : 'bg-white border-slate-200 shadow-md'}`}>
-            <h3 className="text-lg font-bold tracking-tight mb-6">Drawdown Over Time</h3>
+        <div className={`p-6 rounded-[24px] border flex flex-col min-h-[350px] relative ${isDarkMode ? 'bg-[#0d1117] border-zinc-800' : 'bg-white border-slate-200 shadow-md'}`}>
+            <div className="flex justify-between items-start mb-6">
+                <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-bold tracking-tight">Drawdown Over Time</h3>
+                    <Tooltip content="Visualizes the percentage drop from your peak equity over the course of your trading history." isDarkMode={isDarkMode}>
+                        <svg 
+                            onClick={onInfoClick}
+                            xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-circle-question-mark opacity-40 cursor-help hover:opacity-100 transition-opacity" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>
+                    </Tooltip>
+                </div>
+
+                {hoverIndex !== null && (
+                    <div className="text-right animate-in fade-in zoom-in-95 duration-200">
+                        <div className="text-xl font-black font-mono text-rose-500 leading-none">
+                            -{drawdownData[hoverIndex].drawdown.toFixed(2)}%
+                        </div>
+                        <div className="text-[10px] font-bold opacity-40 uppercase tracking-widest mt-1">
+                            {userProfile.currencySymbol}{drawdownData[hoverIndex].balance.toLocaleString()}
+                        </div>
+                    </div>
+                )}
+            </div>
             {drawdownData.length < 2 ? (
                 <div className="flex-1 flex items-center justify-center opacity-30 text-sm">Insufficient data</div>
             ) : (
@@ -1289,7 +1604,13 @@ const DrawdownOverTimeWidget = ({ trades = [], isDarkMode, userProfile }: { trad
                         <span>{maxY.toFixed(2)}%</span>
                     </div>
                     <div className="ml-12 h-full pb-8">
-                        <svg viewBox="0 0 700 200" className="w-full h-full overflow-visible" preserveAspectRatio="none">
+                        <svg 
+                            viewBox="0 0 700 200" 
+                            className="w-full h-full overflow-visible cursor-crosshair" 
+                            preserveAspectRatio="none"
+                            onMouseMove={handleMouseMove}
+                            onMouseLeave={() => setHoverIndex(null)}
+                        >
                             <defs>
                                 <linearGradient id="drawdownGradient" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.4" />
@@ -1298,6 +1619,13 @@ const DrawdownOverTimeWidget = ({ trades = [], isDarkMode, userProfile }: { trad
                             </defs>
                             <path d={paths.area} fill="url(#drawdownGradient)" />
                             <path d={paths.line} fill="none" stroke="#f43f5e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            
+                            {hoverIndex !== null && (
+                                <>
+                                    <line x1={mousePos.x} y1="0" x2={mousePos.x} y2="200" stroke="#f43f5e" strokeWidth="1" strokeDasharray="4 4" opacity="0.5" />
+                                    <circle cx={mousePos.x} cy={hoverY} r="5" fill="#f43f5e" stroke={isDarkMode ? "#0d1117" : "white"} strokeWidth="2" />
+                                </>
+                            )}
                         </svg>
                     </div>
                 </div>
@@ -1307,7 +1635,7 @@ const DrawdownOverTimeWidget = ({ trades = [], isDarkMode, userProfile }: { trad
 };
 
 
-const TiltScoreWidget = ({ trades = [], isDarkMode }: { trades: Trade[], isDarkMode: boolean }) => {
+const TiltScoreWidget = ({ trades = [], isDarkMode, onInfoClick }: { trades: Trade[], isDarkMode: boolean, onInfoClick?: () => void }) => {
     const scoreData = useMemo(() => {
         const safeTrades = trades || [];
         if (safeTrades.length === 0) return { score: 100, label: 'No Data', message: 'Start logging trades to see your tilt score.' };
@@ -1343,8 +1671,15 @@ const TiltScoreWidget = ({ trades = [], isDarkMode }: { trades: Trade[], isDarkM
     }, [trades]);
 
     return (
-        <div className={`p-8 rounded-[32px] border flex flex-col items-center justify-center text-center min-h-[350px] ${isDarkMode ? 'bg-[#0d1117] border-zinc-800' : 'bg-white border-slate-200 shadow-md'}`}>
-            <h3 className="text-xl font-bold tracking-tight mb-12">Discipline Score</h3>
+        <div className={`p-8 rounded-[32px] border flex flex-col items-center justify-center text-center min-h-[400px] ${isDarkMode ? 'bg-[#18181b] border-zinc-800 shadow-2xl' : 'bg-white border-slate-200 shadow-md'}`}>
+            <div className="flex items-center gap-2 mb-12">
+                <h3 className="text-xl font-bold tracking-tight">Discipline Score</h3>
+                <Tooltip content="Calculates a score based on how strictly you followed your trading plan for each trade." isDarkMode={isDarkMode}>
+                    <svg 
+                        onClick={onInfoClick}
+                        xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-circle-question-mark opacity-40 cursor-help hover:opacity-100 transition-opacity" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>
+                </Tooltip>
+            </div>
             <div className="relative w-64 h-64 mb-6">
                 <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
                     <circle cx="50" cy="50" r="45" fill="transparent" stroke={isDarkMode ? "#1a1a1f" : "#f1f5f9"} strokeWidth="8" />
@@ -1372,8 +1707,17 @@ const TiltScoreWidget = ({ trades = [], isDarkMode }: { trades: Trade[], isDarkM
     );
 };
 
-const PerformanceRadarWidget = ({ trades = [], isDarkMode }: { trades: Trade[], isDarkMode: boolean }) => {
+const PerformanceRadarWidget = ({ trades = [], isDarkMode, onInfoClick }: { trades: Trade[], isDarkMode: boolean, onInfoClick?: () => void }) => {
     const [hoveredNode, setHoveredNode] = useState<{ mindset: string, value: number, x: number, y: number } | null>(null);
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setMousePos({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        });
+    };
 
     const radarData = useMemo(() => {
         const safeTrades = trades || [];
@@ -1417,42 +1761,76 @@ const PerformanceRadarWidget = ({ trades = [], isDarkMode }: { trades: Trade[], 
         });
     }, [trades]);
 
-    const points = radarData.map(d => `${50 + d.x * d.value * 50},${50 + d.y * d.value * 50}`).join(' ');
-    const zeroPoints = radarData.map(d => `${50 + d.x * 0.5 * 50},${50 + d.y * 0.5 * 50}`).join(' ');
+    const points = radarData.map(d => `${50 + d.x * d.value * 45},${50 + d.y * d.value * 45}`).join(' ');
 
     return (
-        <div className={`p-8 rounded-[32px] border flex flex-col items-center min-h-[350px] relative ${isDarkMode ? 'bg-[#0d1117] border-zinc-800' : 'bg-white border-slate-200 shadow-md'}`}>
-            <h3 className="text-xl font-bold tracking-tight mb-12">Performance Radar</h3>
-            <div className="relative w-64 h-64">
-                <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
-                    {/* Grid Rings - Solid & Subtle */}
-                    {[0.25, 0.5, 0.75, 1].map((r, i) => (
-                        <circle key={i} cx="50" cy="50" r={r * 50} fill="none" stroke={isDarkMode ? "white" : "black"} strokeOpacity="0.05" strokeWidth="0.5" />
+        <div 
+            onMouseMove={handleMouseMove}
+            className={`p-8 rounded-[32px] border flex flex-col items-center min-h-[400px] relative ${isDarkMode ? 'bg-[#18181b] border-zinc-800 shadow-2xl' : 'bg-white border-slate-200 shadow-md'}`}
+        >
+            <div className="text-center mb-8">
+                <div className="flex items-center gap-2 justify-center">
+                    <h3 className="text-xl font-bold tracking-tight">Performance Radar</h3>
+                    <Tooltip content="Maps your P&L performance against your psychological state (mindset) at the time of trading." isDarkMode={isDarkMode}>
+                        <svg 
+                            onClick={onInfoClick}
+                            xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-circle-question-mark opacity-40 cursor-help hover:opacity-100 transition-opacity" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>
+                    </Tooltip>
+                </div>
+            </div>
+            
+            <div className="flex-1 flex items-center justify-center relative w-full">
+                <svg viewBox="0 0 100 100" className="w-full max-w-[280px] aspect-square overflow-visible">
+                    {/* Circular Grid Lines (Matching the new look) */}
+                    {[0.2, 0.4, 0.6, 0.8, 1].map((r, i) => (
+                        <circle 
+                            key={i} 
+                            cx="50" 
+                            cy="50" 
+                            r={r * 45} 
+                            fill="none" 
+                            stroke={isDarkMode ? "white" : "black"} 
+                            strokeOpacity="0.08" 
+                            strokeWidth="0.5" 
+                        />
                     ))}
 
-                    {/* Zero Line (Break Even) - Slightly distinct */}
-                    <polygon points={zeroPoints} fill="none" stroke={isDarkMode ? "white" : "black"} strokeOpacity="0.1" strokeWidth="1" strokeDasharray="2 2" />
-
-                    {/* Axes - Dashed */}
+                    {/* Radial Axes */}
                     {radarData.map((d, i) => (
-                        <line key={i} x1="50" y1="50" x2={50 + d.x * 50} y2={50 + d.y * 50} stroke={isDarkMode ? "white" : "black"} strokeOpacity="0.05" strokeDasharray="2 2" />
+                        <line 
+                            key={i} 
+                            x1="50" 
+                            y1="50" 
+                            x2={50 + d.x * 45} 
+                            y2={50 + d.y * 45} 
+                            stroke={isDarkMode ? "white" : "black"} 
+                            strokeOpacity="0.08" 
+                            strokeWidth="0.5" 
+                        />
                     ))}
 
-                    {/* Data Shape - Cleaner Look */}
-                    <polygon points={points} fill="rgba(99, 102, 241, 0.1)" stroke="#6366f1" strokeWidth="1.5" strokeLinejoin="round" />
+                    {/* Data Area (Radar) */}
+                    <polygon 
+                        points={points} 
+                        fill="rgba(99, 102, 241, 0.6)" 
+                        stroke="#6366f1" 
+                        strokeWidth="2" 
+                        strokeLinejoin="round" 
+                        className="transition-all duration-1000"
+                    />
 
-                    {/* Data Points - Technical Look */}
+                    {/* Data Points (Dots at vertices) */}
                     {radarData.map((d, i) => (
                         <circle
                             key={i}
-                            cx={50 + d.x * d.value * 50}
-                            cy={50 + d.y * d.value * 50}
-                            r="2.5"
-                            fill={isDarkMode ? "#0d1117" : "white"}
-                            stroke="#6366f1"
-                            strokeWidth="1"
-                            className="cursor-pointer hover:stroke-[2px] transition-all duration-200"
-                            onMouseEnter={() => setHoveredNode({ mindset: d.mindset, value: d.rawValue, x: 50 + d.x * d.value * 50, y: 50 + d.y * d.value * 50 })}
+                            cx={50 + d.x * d.value * 45}
+                            cy={50 + d.y * d.value * 45}
+                            r="3"
+                            fill="#6366f1"
+                            stroke={isDarkMode ? "#18181b" : "white"}
+                            strokeWidth="1.5"
+                            className="cursor-pointer transition-all duration-300 hover:r-4"
+                            onMouseEnter={() => setHoveredNode({ mindset: d.mindset, value: d.rawValue, x: 50 + d.x * d.value * 45, y: 50 + d.y * d.value * 45 })}
                             onMouseLeave={() => setHoveredNode(null)}
                         />
                     ))}
@@ -1461,45 +1839,55 @@ const PerformanceRadarWidget = ({ trades = [], isDarkMode }: { trades: Trade[], 
                     {radarData.map((d, i) => (
                         <text
                             key={i}
-                            x={50 + d.x * 58}
-                            y={50 + d.y * 58}
+                            x={50 + d.x * 55}
+                            y={50 + d.y * 55}
                             textAnchor="middle"
                             dominantBaseline="middle"
-                            className="text-[5px] font-bold uppercase tracking-wider opacity-50 font-mono"
-                            fill={isDarkMode ? "white" : "black"}
+                            className="text-[4px] font-bold uppercase tracking-wider opacity-50 fill-current"
                         >
                             {d.mindset}
                         </text>
                     ))}
                 </svg>
-
-                {/* Tooltip Overlay */}
-                {hoveredNode && (
-                    <div
-                        className={`absolute z-50 px-3 py-2 rounded-lg text-xs font-bold pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2 shadow-xl border ${isDarkMode ? 'bg-zinc-900 border-zinc-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
-                        style={{
-                            left: `${(hoveredNode.x / 100) * 100}%`,
-                            top: `${(hoveredNode.y / 100) * 100}%`
-                        }}
-                    >
-                        <div className="opacity-60 text-[10px] uppercase tracking-wider mb-0.5">{hoveredNode.mindset}</div>
-                        <div className={hoveredNode.value >= 0 ? 'text-emerald-500' : 'text-rose-500'}>
-                            {hoveredNode.value >= 0 ? '+' : ''}{hoveredNode.value.toLocaleString()}
-                        </div>
-                    </div>
-                )}
             </div>
-            {/* Legend - Simplified */}
-            <div className="mt-10 flex items-center gap-2 text-xs opacity-40 font-mono">
-                <div className="w-2 h-0.5 bg-indigo-500"></div>
-                <span>Performance Envelope</span>
+
+            {/* Tooltip Overlay (Floating) */}
+            {hoveredNode && (
+                <div
+                    className={`absolute z-50 px-4 py-2 rounded-xl text-xs font-bold pointer-events-none shadow-2xl border backdrop-blur-md animate-in fade-in zoom-in duration-200 ${isDarkMode ? 'bg-[#09090b]/90 border-zinc-700 text-white' : 'bg-white/90 border-slate-200 text-slate-900'}`}
+                    style={{
+                        left: mousePos.x + 15,
+                        top: mousePos.y - 45
+                    }}
+                >
+                    <div className="opacity-60 text-[9px] font-black uppercase tracking-widest mb-1">{hoveredNode.mindset}</div>
+                    <div className={`text-sm ${hoveredNode.value >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {hoveredNode.value >= 0 ? '+' : ''}{hoveredNode.value.toLocaleString()}
+                    </div>
+                </div>
+            )}
+
+            <div className="mt-8 flex flex-col items-center gap-2">
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest opacity-40">
+                    <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                    <span>Psychology Footprint</span>
+                </div>
             </div>
         </div>
     );
 };
 
-const PLByMindsetWidget = ({ trades = [], isDarkMode, currencySymbol = '$' }: { trades: Trade[], isDarkMode: boolean, currencySymbol: string }) => {
+const PLByMindsetWidget = ({ trades = [], isDarkMode, currencySymbol = '$', onInfoClick }: { trades: Trade[], isDarkMode: boolean, currencySymbol: string, onInfoClick?: () => void }) => {
     const [hoveredMindset, setHoveredMindset] = useState<string | null>(null);
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setMousePos({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        });
+    };
 
     const mindsetData = useMemo(() => {
         const safeTrades = trades || [];
@@ -1534,8 +1922,18 @@ const PLByMindsetWidget = ({ trades = [], isDarkMode, currencySymbol = '$' }: { 
     const hoveredData = hoveredMindset ? mindsetData.find(d => d.mindset === hoveredMindset) : null;
 
     return (
-        <div className={`p-6 rounded-[24px] border flex flex-col min-h-[400px] ${isDarkMode ? 'bg-[#0d1117] border-zinc-800' : 'bg-white border-slate-200 shadow-md'}`}>
-            <h3 className="text-xl font-bold tracking-tight mb-8">P/L by Mindset</h3>
+        <div 
+            onMouseMove={handleMouseMove}
+            className={`p-6 rounded-[24px] border flex flex-col min-h-[400px] relative ${isDarkMode ? 'bg-[#0d1117] border-zinc-800' : 'bg-white border-slate-200 shadow-md'}`}
+        >
+            <div className="flex items-center gap-2 mb-8">
+                <h3 className="text-xl font-bold tracking-tight">P/L by Mindset</h3>
+                <Tooltip content="Bar chart showing your net profit or loss categorized by the mindset you recorded." isDarkMode={isDarkMode}>
+                    <svg 
+                        onClick={onInfoClick}
+                        xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-circle-question-mark opacity-40 cursor-help hover:opacity-100 transition-opacity" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>
+                </Tooltip>
+            </div>
 
             <div className="flex-1 flex relative overflow-hidden">
                 {/* Y-Axis Labels */}
@@ -1585,10 +1983,18 @@ const PLByMindsetWidget = ({ trades = [], isDarkMode, currencySymbol = '$' }: { 
                         })}
                     </div>
                 </div>
+            </div>
 
-                {/* Tooltip */}
-                {hoveredData && (
-                    <div className={`absolute right-4 top-0 p-4 rounded-xl z-30 min-w-[140px] shadow-2xl border backdrop-blur-md animate-in fade-in zoom-in duration-200 ${isDarkMode ? 'bg-[#09090b]/90 border-zinc-700' : 'bg-white/90 border-slate-200'}`}>
+            {/* Tooltip (Floating) */}
+            {hoveredData && (
+                <div 
+                    className="absolute pointer-events-none z-50"
+                    style={{ 
+                        left: mousePos.x - 140, 
+                        top: mousePos.y - 80
+                    }}
+                >
+                    <div className={`p-4 rounded-xl shadow-2xl border backdrop-blur-md animate-in fade-in zoom-in duration-200 min-w-[140px] ${isDarkMode ? 'bg-[#09090b]/90 border-zinc-700' : 'bg-white/90 border-slate-200'}`}>
                         <div className="font-bold text-xs mb-2 border-b border-white/10 pb-1">{hoveredData.mindset}</div>
                         <div className="flex justify-between items-center">
                             <span className="text-[10px] opacity-60 uppercase font-bold">Net P/L</span>
@@ -1597,14 +2003,24 @@ const PLByMindsetWidget = ({ trades = [], isDarkMode, currencySymbol = '$' }: { 
                             </span>
                         </div>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
         </div>
     );
 };
 
-const PLByPlanAdherenceWidget = ({ trades = [], isDarkMode, currencySymbol = '$' }: { trades: Trade[], isDarkMode: boolean, currencySymbol: string }) => {
+const PLByPlanAdherenceWidget = ({ trades = [], isDarkMode, currencySymbol = '$', onInfoClick }: { trades: Trade[], isDarkMode: boolean, currencySymbol: string, onInfoClick?: () => void }) => {
     const [hoveredAdherence, setHoveredAdherence] = useState<string | null>(null);
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setMousePos({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        });
+    };
+
     const adherenceData = useMemo(() => {
         const safeTrades = trades || [];
         const categories = ['Followed Exactly', 'Minor Deviation', 'Major Deviation', 'No Plan'];
@@ -1642,8 +2058,18 @@ const PLByPlanAdherenceWidget = ({ trades = [], isDarkMode, currencySymbol = '$'
     const hoveredData = hoveredAdherence ? adherenceData.find(d => d.fullLabel === hoveredAdherence) : null;
 
     return (
-        <div className={`p-6 rounded-[24px] border flex flex-col min-h-[400px] ${isDarkMode ? 'bg-[#0d1117] border-zinc-800' : 'bg-white border-slate-200 shadow-md'}`}>
-            <h3 className="text-xl font-bold tracking-tight mb-8">P/L by Plan Adherence</h3>
+        <div 
+            onMouseMove={handleMouseMove}
+            className={`p-6 rounded-[24px] border flex flex-col min-h-[400px] relative ${isDarkMode ? 'bg-[#0d1117] border-zinc-800' : 'bg-white border-slate-200 shadow-md'}`}
+        >
+            <div className="flex items-center gap-2 mb-8">
+                <h3 className="text-xl font-bold tracking-tight">P/L by Plan Adherence</h3>
+                <Tooltip content="Shows how your P/L correlates with your level of plan adherence." isDarkMode={isDarkMode}>
+                    <svg 
+                        onClick={onInfoClick}
+                        xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" className="lucide lucide-circle-question-mark opacity-40 cursor-help hover:opacity-100 transition-opacity" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>
+                </Tooltip>
+            </div>
 
             <div className="flex-1 flex relative overflow-hidden">
                 {/* Y-Axis Labels */}
@@ -1693,10 +2119,18 @@ const PLByPlanAdherenceWidget = ({ trades = [], isDarkMode, currencySymbol = '$'
                         })}
                     </div>
                 </div>
+            </div>
 
-                {/* Tooltip */}
-                {hoveredData && (
-                    <div className={`absolute right-4 top-0 p-4 rounded-xl z-30 min-w-[140px] shadow-2xl border backdrop-blur-md animate-in fade-in zoom-in duration-200 ${isDarkMode ? 'bg-[#09090b]/90 border-zinc-700' : 'bg-white/90 border-slate-200'}`}>
+            {/* Tooltip (Floating) */}
+            {hoveredData && (
+                <div 
+                    className="absolute pointer-events-none z-50"
+                    style={{ 
+                        left: mousePos.x - 140, 
+                        top: mousePos.y - 80
+                    }}
+                >
+                    <div className={`p-4 rounded-xl shadow-2xl border backdrop-blur-md animate-in fade-in zoom-in duration-200 min-w-[140px] ${isDarkMode ? 'bg-[#09090b]/90 border-zinc-700' : 'bg-white/90 border-slate-200'}`}>
                         <div className="font-bold text-xs mb-2 border-b border-white/10 pb-1">{hoveredData.fullLabel}</div>
                         <div className="flex justify-between items-center">
                             <span className="text-[10px] opacity-60 uppercase font-bold">Net P/L</span>
@@ -1705,7 +2139,179 @@ const PLByPlanAdherenceWidget = ({ trades = [], isDarkMode, currencySymbol = '$'
                             </span>
                         </div>
                     </div>
-                )}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const StrategyPerformanceBubbleChart = ({ trades = [], isDarkMode, currencySymbol = '$' }: { trades: Trade[], isDarkMode: boolean, currencySymbol: string }) => {
+    const [hoveredStrategy, setHoveredStrategy] = useState<any | null>(null);
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setMousePos({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        });
+    };
+
+    const strategyData = useMemo(() => {
+        const safeTrades = trades || [];
+        const stats: Record<string, { pnl: number, count: number, wins: number }> = {};
+
+        safeTrades.forEach(t => {
+            const stratStrategies = t.tags || [];
+            stratStrategies.forEach(tag => {
+                const normalized = tag.trim();
+                if (!stats[normalized]) stats[normalized] = { pnl: 0, count: 0, wins: 0 };
+                stats[normalized].pnl += t.pnl;
+                stats[normalized].count += 1;
+                if (t.result === 'Win') stats[normalized].wins += 1;
+            });
+        });
+
+        return Object.entries(stats).map(([name, data]) => ({
+            name,
+            pnl: data.pnl,
+            count: data.count,
+            winRate: (data.wins / data.count) * 100,
+            avgPnl: data.pnl / data.count
+        })).filter(d => d.count >= 1); // Only show strategies with at least 1 trade
+    }, [trades]);
+
+    const maxPnl = Math.max(...strategyData.map(d => Math.abs(d.pnl)), 100);
+    const maxCount = Math.max(...strategyData.map(d => d.count), 5);
+
+    return (
+        <div 
+            onMouseMove={handleMouseMove}
+            className={`p-8 rounded-[32px] border flex flex-col h-full min-h-[450px] relative overflow-hidden ${isDarkMode ? 'bg-[#18181b] border-zinc-800 shadow-2xl' : 'bg-white border-slate-200 shadow-md'}`}
+        >
+            <div className="flex items-center justify-between mb-8">
+                <div>
+                    <h3 className="text-xl font-bold tracking-tight">Performance by Strategy</h3>
+                    <p className="text-[10px] uppercase font-bold tracking-widest opacity-40 mt-1">Win Rate vs. Net Profitability</p>
+                </div>
+                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-500">
+                    <Sparkles size={20} />
+                </div>
+            </div>
+
+            <div className="flex-1 relative mt-4 mb-12 ml-12 mr-4">
+                {/* Y-Axis (PnL) Labels */}
+                <div className="absolute -left-12 inset-y-0 w-10 flex flex-col justify-between text-[9px] font-mono font-bold opacity-30 text-right">
+                    <span>+{currencySymbol}{Math.round(maxPnl)}</span>
+                    <span>{currencySymbol}0</span>
+                    <span>-{currencySymbol}{Math.round(maxPnl)}</span>
+                </div>
+
+                {/* X-Axis (Win Rate) Labels */}
+                <div className="absolute inset-x-0 -bottom-8 h-6 flex justify-between text-[9px] font-mono font-bold opacity-30">
+                    <span>0% WR</span>
+                    <span>25%</span>
+                    <span>50%</span>
+                    <span>75%</span>
+                    <span>100% WR</span>
+                </div>
+
+                {/* Grid Lines */}
+                <div className="absolute inset-0 border-l border-b border-white/5">
+                    <div className="absolute inset-x-0 h-px bg-white/10" style={{ top: '50%' }} />
+                    <div className="absolute inset-y-0 w-px bg-white/10" style={{ left: '50%' }} />
+                </div>
+
+                {/* Bubbles */}
+                {strategyData.map((d, i) => {
+                    const x = d.winRate; // 0 to 100
+                    // Normalize Y: 0 is bottom (-maxPnl), 50 is center (0), 100 is top (+maxPnl)
+                    const y = 50 + (d.pnl / (maxPnl * 2)) * 100;
+                    const size = Math.max(20, (d.count / maxCount) * 60);
+                    const isHovered = hoveredStrategy?.name === d.name;
+
+                    return (
+                        <div
+                            key={i}
+                            className="absolute transition-all duration-500 cursor-pointer"
+                            onMouseEnter={() => setHoveredStrategy(d)}
+                            onMouseLeave={() => setHoveredStrategy(null)}
+                            style={{
+                                left: `${x}%`,
+                                bottom: `${y}%`,
+                                transform: 'translate(-50%, 50%)',
+                                zIndex: isHovered ? 40 : 10
+                            }}
+                        >
+                            <div 
+                                className={`rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
+                                    d.pnl >= 0 
+                                    ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-500' 
+                                    : 'bg-rose-500/20 border-rose-500/50 text-rose-500'
+                                } ${isHovered ? 'scale-125 brightness-125 shadow-[0_0_20px_rgba(99,102,241,0.3)]' : 'opacity-80'}`}
+                                style={{
+                                    width: `${size}px`,
+                                    height: `${size}px`,
+                                }}
+                            >
+                                <span className="text-[8px] font-black uppercase tracking-tighter truncate px-1">{d.name}</span>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Tooltip Overlay */}
+            {hoveredStrategy && (
+                <div 
+                    className="absolute pointer-events-none z-50"
+                    style={{ 
+                        left: mousePos.x + 20, 
+                        top: mousePos.y - 40
+                    }}
+                >
+                    <div className={`p-4 rounded-2xl shadow-2xl border backdrop-blur-md animate-in fade-in zoom-in duration-200 min-w-[180px] ${isDarkMode ? 'bg-[#09090b]/95 border-zinc-700' : 'bg-white/95 border-slate-200'}`}>
+                        <div className="flex items-center gap-2 mb-3 border-b border-white/10 pb-2">
+                            <div className={`w-2 h-2 rounded-full ${hoveredStrategy.pnl >= 0 ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                            <div className="font-black text-sm uppercase tracking-wide">{hoveredStrategy.name}</div>
+                        </div>
+                        <div className="space-y-2 text-xs">
+                            <div className="flex justify-between items-center">
+                                <span className="opacity-60 font-bold uppercase text-[9px]">Total P&L</span>
+                                <span className={`font-black ${hoveredStrategy.pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                    {hoveredStrategy.pnl >= 0 ? '+' : ''}{currencySymbol}{hoveredStrategy.pnl.toLocaleString()}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="opacity-60 font-bold uppercase text-[9px]">Win Rate</span>
+                                <span className="font-black">{hoveredStrategy.winRate.toFixed(1)}%</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="opacity-60 font-bold uppercase text-[9px]">Trade Volume</span>
+                                <span className="font-black">{hoveredStrategy.count} Trades</span>
+                            </div>
+                            <div className="flex justify-between items-center pt-2 border-t border-white/5">
+                                <span className="opacity-60 font-bold uppercase text-[9px]">Avg / Trade</span>
+                                <span className="font-black">{currencySymbol}{hoveredStrategy.avgPnl.toFixed(2)}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <div className="mt-4 flex items-center justify-center gap-6 text-[10px] font-bold uppercase tracking-widest opacity-40">
+                <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>Profitable Strategy</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-rose-500" />
+                    <span>Losing Strategy</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded-full border border-current opacity-50" />
+                    <span>Bubble Size = Volume</span>
+                </div>
             </div>
         </div>
     );
@@ -1713,9 +2319,48 @@ const PLByPlanAdherenceWidget = ({ trades = [], isDarkMode, currencySymbol = '$'
 
 const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProfile, eaSession }) => {
     const [activeTab, setActiveTab] = useState<'overview' | 'growth' | 'discipline' | 'comparison'>('overview');
-    const isFreeTier = userProfile?.plan === 'FREE TIER (JOURNALER)';
-    const isProTier = userProfile?.plan === 'PRO TIER (ANALYSTS)';
-    const isPremiumTier = userProfile?.plan === 'PREMIUM (MASTERS)';
+    const [activeInfo, setActiveInfo] = useState<{ title: string, content: string } | null>(null);
+    
+    const currentPlan = userProfile?.plan || APP_CONSTANTS.PLANS.FREE;
+    const features = PLAN_FEATURES[currentPlan];
+
+    const InfoPanel = ({ info, onClose }: { info: { title: string, content: string }, onClose: () => void }) => (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 sm:p-12 animate-in fade-in duration-300">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+            <div className={`relative w-full max-w-lg p-8 rounded-[32px] border shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-8 duration-300 ${isDarkMode ? 'bg-[#0d1117] border-zinc-800' : 'bg-white border-slate-200'}`}>
+                <button 
+                    onClick={onClose}
+                    className={`absolute top-6 right-6 p-2 rounded-xl transition-all ${isDarkMode ? 'hover:bg-white/5' : 'hover:bg-black/5'}`}
+                >
+                    <X size={20} className={isDarkMode ? 'text-zinc-400' : 'text-slate-500'} />
+                </button>
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2.5 rounded-2xl bg-[#FF4F01]/10 text-[#FF4F01]">
+                        <Info size={24} />
+                    </div>
+                    <h3 className="text-2xl font-black tracking-tight">Help: {info.title}</h3>
+                </div>
+                <div className={`text-sm leading-relaxed space-y-4 font-medium ${isDarkMode ? 'text-zinc-400' : 'text-slate-600'}`}>
+                    {info.content.split('\n\n').map((para, i) => (
+                        <p key={i}>{para}</p>
+                    ))}
+                </div>
+                <button 
+                    onClick={onClose}
+                    className="w-full mt-10 py-4 bg-[#FF4F01] hover:bg-[#E64601] text-white rounded-2xl font-black text-sm transition-all shadow-xl shadow-[#FF4F01]/20"
+                >
+                    Got it, thanks!
+                </button>
+            </div>
+        </div>
+    );
+    
+    // Derived feature flags for clarity
+    const canAccessGrowth = features.advancedAnalytics;
+    const canAccessDiscipline = features.advancedAnalytics;
+    const canAccessComparison = features.comparisonAnalytics;
+    // For overview lock logic (Free tier usually has some restrictions on overview widgets too)
+    const isBasicTier = !features.advancedAnalytics;
 
     // Widget Order State
     const [overviewOrder, setOverviewOrder] = useLocalStorage('analytics_overview_order', [
@@ -1723,11 +2368,11 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
         'streakMomentum', 'equityCurve',
         'drawdown', 'largestWinLoss',
         'symbolPerformance', 'monthlyPerformance',
-        'currencyStrength', 'tradeExit'
+        'currencyStrength', 'tradeExit', 'bestTime'
     ]);
 
     const [growthOrder, setGrowthOrder] = useLocalStorage('analytics_growth_order', [
-        'outcomeDist', 'perfByPair', 'executionTable'
+        'outcomeDist', 'perfByPair', 'strategyPerf', 'executionTable'
     ]);
 
     const [disciplineOrder, setDisciplineOrder] = useLocalStorage('analytics_discipline_order', [
@@ -1746,14 +2391,27 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
         const defaultOverview = [
             'winRate', 'profitFactor', 'grossProfit', 'grossLoss',
             'streakMomentum', 'equityCurve', 'drawdown', 'largestWinLoss',
-            'symbolPerformance', 'monthlyPerformance', 'currencyStrength', 'tradeExit'
+            'symbolPerformance', 'monthlyPerformance', 'currencyStrength', 'tradeExit', 'bestTime'
         ];
+        const defaultGrowth = ['outcomeDist', 'perfByPair', 'strategyPerf', 'executionTable'];
+        const defaultDiscipline = ['tiltScore', 'radar', 'plMindset', 'plAdherence', 'riskReward'];
 
-        const missingWidgets = defaultOverview.filter(id => !overviewOrder.includes(id));
-        if (missingWidgets.length > 0) {
-            setOverviewOrder([...overviewOrder, ...missingWidgets]);
-        }
-    }, [overviewOrder, setOverviewOrder]);
+        // Use functional updates to avoid dependency on the values themselves
+        setOverviewOrder(prev => {
+            const missing = defaultOverview.filter(id => !prev.includes(id));
+            return missing.length > 0 ? [...prev, ...missing] : prev;
+        });
+
+        setGrowthOrder(prev => {
+            const missing = defaultGrowth.filter(id => !prev.includes(id));
+            return missing.length > 0 ? [...prev, ...missing] : prev;
+        });
+
+        setDisciplineOrder(prev => {
+            const missing = defaultDiscipline.filter(id => !prev.includes(id));
+            return missing.length > 0 ? [...prev, ...missing] : prev;
+        });
+    }, []); // Run once on mount
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
@@ -1828,7 +2486,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
         // Essential check for widgets - these are the only ones visible on FREE tier overview
         const isEssential = ['winRate', 'profitFactor', 'grossProfit', 'grossLoss', 'equityCurve'].includes(id);
         
-        if (isFreeTier && !isEssential && activeTab === 'overview') {
+        if (isBasicTier && !isEssential && activeTab === 'overview') {
             return (
                 <div className={`h-full p-6 rounded-[24px] border flex flex-col items-center justify-center text-center relative overflow-hidden ${isDarkMode ? 'bg-[#18181b] border-[#27272a]' : 'bg-white border-slate-200 shadow-md'}`}>
                     <div className="absolute inset-0 bg-black/5 dark:bg-white/[0.02] backdrop-blur-[2px] z-10" />
@@ -1837,7 +2495,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
                             <Lock size={16} />
                         </div>
                         <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Pro Analytics</span>
-                        <p className="text-[9px] font-bold opacity-30 px-4">Upgrade to PRO or PREMIUM to unlock this insight.</p>
+                        <p className="text-[9px] font-bold opacity-30 px-4">Upgrade to unlock this insight.</p>
                     </div>
                 </div>
             );
@@ -1874,7 +2532,16 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
                     </div>
                 );
             case 'streakMomentum':
-                return <MomentumStreakWidget trades={trades} isDarkMode={isDarkMode} />;
+                return (
+                    <MomentumStreakWidget 
+                        trades={trades} 
+                        isDarkMode={isDarkMode} 
+                        onInfoClick={() => setActiveInfo({
+                            title: "Trade Momentum",
+                            content: "Momentum tracks your recent outcome streaks (Wins/Losses). It helps you visualize 'hot' and 'cold' cycles in your trading.\n\nBy monitoring momentum, you can identify when you are in a flow state or, conversely, when you might be revenge trading or entering a slump. It also includes a recovery indicator to celebrate breaking a losing cycle."
+                        })}
+                    />
+                );
             case 'equityCurve': {
                 // If EA Session exists, use bridge equity as current balance
                 const currentBalance = eaSession?.data?.account?.equity !== undefined
@@ -1888,21 +2555,95 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
                         isDarkMode={isDarkMode}
                         currencySymbol={currencySymbol}
                         currentBalanceOverride={currentBalance}
+                        onInfoClick={() => setActiveInfo({
+                            title: "Equity Curve",
+                            content: "The Equity Curve is the primary visualization of your account's financial health over time. It plots your total balance after every closed trade.\n\nA smooth, upward-sloping curve indicates consistent profitability and controlled risk. Large vertical drops represent significant losses or drawdown periods that may require strategy adjustment."
+                        })}
                     />
                 );
             }
             case 'drawdown':
-                return <DrawdownOverTimeWidget trades={trades} isDarkMode={isDarkMode} userProfile={userProfile} />;
+                return (
+                    <DrawdownOverTimeWidget 
+                        trades={trades} 
+                        isDarkMode={isDarkMode} 
+                        userProfile={userProfile} 
+                        onInfoClick={() => setActiveInfo({
+                            title: "Drawdown Over Time",
+                            content: "This chart tracks your 'Peak-to-Valley' equity drops. It shows the percentage decline from your highest ever balance point.\n\nManaging drawdown is critical for long-term survival. Seeing your drawdown history helps you understand the 'risk of ruin' and whether your strategy's losing periods are within your tolerated risk parameters."
+                        })}
+                    />
+                );
             case 'largestWinLoss':
-                return <LargestWinLossWidget trades={trades} isDarkMode={isDarkMode} currencySymbol={currencySymbol} />;
+                return (
+                    <LargestWinLossWidget 
+                        trades={trades} 
+                        isDarkMode={isDarkMode} 
+                        currencySymbol={currencySymbol} 
+                        onInfoClick={() => setActiveInfo({
+                            title: "Largest Win vs Loss",
+                            content: "This metric compares your single most profitable trade against your single largest losing trade. It's a simple but powerful check on your risk management.\n\nIdeally, your largest win should significantly outweigh your largest loss. If your largest loss is much bigger, it suggests a lack of disciplined stop-losses or 'holding onto losers' behavior."
+                        })}
+                    />
+                );
             case 'symbolPerformance':
-                return <SymbolPerformanceWidget trades={trades} isDarkMode={isDarkMode} currencySymbol={currencySymbol} />;
+                return (
+                    <SymbolPerformanceWidget 
+                        trades={trades} 
+                        isDarkMode={isDarkMode} 
+                        currencySymbol={currencySymbol} 
+                        onInfoClick={() => setActiveInfo({
+                            title: "Symbol Performance",
+                            content: "This widget highlights your best and worst performing assets. It shows the total sum of P&L and the average P&L per trade for each symbol.\n\nUse this to 'trim the fat' from your portfolio. Many traders find they lose most of their money on a few specific pairs while being highly profitable on others. Focus on what works."
+                        })}
+                    />
+                );
             case 'monthlyPerformance':
-                return <MonthlyPerformanceWidget trades={trades} isDarkMode={isDarkMode} currencySymbol={currencySymbol} />;
+                return (
+                    <MonthlyPerformanceWidget 
+                        trades={trades} 
+                        isDarkMode={isDarkMode} 
+                        currencySymbol={currencySymbol} 
+                        onInfoClick={() => setActiveInfo({
+                            title: "Monthly Performance",
+                            content: "A high-level view of your P&L and maximum drawdown for every month of the current year.\n\nThis helps you spot seasonal trends in your trading and provides a benchmark for monthly growth targets. It's essential for treating your trading as a business with monthly reporting cycles."
+                        })}
+                    />
+                );
             case 'currencyStrength':
-                return <CurrencyStrengthMeter isDarkMode={isDarkMode} trades={trades} />;
+                return (
+                    <CurrencyStrengthMeter 
+                        isDarkMode={isDarkMode} 
+                        trades={trades} 
+                        onInfoClick={() => setActiveInfo({
+                            title: "Currency Strength",
+                            content: "The Currency Strength meter shows the relative performance of individual currencies based on your past trades. If you are consistently winning on 'Long' EURUSD trades, the EUR strength increases while USD strength decreases.\n\nUse this to identify which currencies you have the best intuition for and which ones are currently driving your performance. It helps you focus on pairs where you have a proven historical edge."
+                        })}
+                    />
+                );
             case 'tradeExit':
-                return <TradeExitAnalysisWidget trades={trades} isDarkMode={isDarkMode} />;
+                return (
+                    <TradeExitAnalysisWidget 
+                        trades={trades} 
+                        isDarkMode={isDarkMode} 
+                        onInfoClick={() => setActiveInfo({
+                            title: "Trade Exit Analysis",
+                            content: "This donut chart breaks down your trade outcomes by exit type: Take Profit (TP), Stop Loss (SL), Breakeven (BE), or Pending.\n\nAnalyzing exits helps you determine if you are exiting too early (high BE rate) or if your stop losses are being hit too frequently compared to your targets. It's a key metric for optimizing your Reward-to-Risk ratio."
+                        })}
+                    />
+                );
+            case 'bestTime':
+                return (
+                    <BestTimeWidget 
+                        trades={trades} 
+                        isDarkMode={isDarkMode} 
+                        currencySymbol={currencySymbol} 
+                        onInfoClick={() => setActiveInfo({
+                            title: "Hourly Performance",
+                            content: "This widget analyzes your trading performance based on the hour of the day. It helps you identify which hours are most profitable for your strategy and when you might be prone to losses.\n\nBy understanding your 'Golden Hours', you can optimize your schedule to trade only when your edge is highest and avoid sessions where you typically underperform or face higher volatility."
+                        })}
+                    />
+                );
 
             // Growth Widgets
             case 'outcomeDist': {
@@ -1996,7 +2737,19 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
                 );
             }
             case 'perfByPair':
-                return <PerformanceByPairWidget trades={trades} isDarkMode={isDarkMode} currencySymbol={currencySymbol} />;
+                return (
+                    <PerformanceByPairWidget 
+                        trades={trades} 
+                        isDarkMode={isDarkMode} 
+                        currencySymbol={currencySymbol} 
+                        onInfoClick={() => setActiveInfo({
+                            title: "Performance by Pair",
+                            content: "A detailed comparison of your gross profit vs. gross loss for every symbol you've traded. The green bars represent total profit, while red bars represent total loss.\n\nThis widget allows you to quickly identify which assets are your 'money makers' and which ones are consistently draining your account. It's a key visualization for portfolio optimization."
+                        })}
+                    />
+                );
+            case 'strategyPerf':
+                return <StrategyPerformanceBubbleChart trades={trades} isDarkMode={isDarkMode} currencySymbol={currencySymbol} />;
             case 'executionTable':
                 return (
                     <div className="space-y-4">
@@ -2007,13 +2760,51 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
 
             // Discipline Widgets
             case 'tiltScore':
-                return <TiltScoreWidget trades={trades} isDarkMode={isDarkMode} />;
+                return (
+                    <TiltScoreWidget 
+                        trades={trades} 
+                        isDarkMode={isDarkMode} 
+                        onInfoClick={() => setActiveInfo({
+                            title: "Discipline Score",
+                            content: "Your Discipline Score is a mathematical reflection of how well you follow your trading rules. It is weighted by your 'Plan Adherence' logs for every trade.\n\nFollowing a plan exactly increases your score, while major deviations or 'winging it' decrease it. A high score is often a leading indicator of long-term profitability, even during losing streaks."
+                        })}
+                    />
+                );
             case 'radar':
-                return <PerformanceRadarWidget trades={trades} isDarkMode={isDarkMode} />;
+                return (
+                    <PerformanceRadarWidget 
+                        trades={trades} 
+                        isDarkMode={isDarkMode} 
+                        onInfoClick={() => setActiveInfo({
+                            title: "Performance Radar",
+                            content: "The Radar chart maps your financial performance against your psychological mindset. It helps you visualize which emotional states lead to your best and worst results.\n\nFor example, you might find that you make the most money when 'Hesitant' (being careful) and 'lose the most when 'Confident' (being overconfident). It's a powerful tool for discovering your optimal trading psychology."
+                        })}
+                    />
+                );
             case 'plMindset':
-                return <PLByMindsetWidget trades={trades} isDarkMode={isDarkMode} currencySymbol={currencySymbol} />;
+                return (
+                    <PLByMindsetWidget 
+                        trades={trades} 
+                        isDarkMode={isDarkMode} 
+                        currencySymbol={currencySymbol} 
+                        onInfoClick={() => setActiveInfo({
+                            title: "P/L by Mindset",
+                            content: "This bar chart breaks down your net profit and loss based on the mindset you logged for each trade.\n\nBy categorizing your results this way, you can see the direct financial impact of your emotions. It helps you quantify why maintaining a 'Neutral' or 'Professional' mindset is often superior to trading under high stress or excitement."
+                        })}
+                    />
+                );
             case 'plAdherence':
-                return <PLByPlanAdherenceWidget trades={trades} isDarkMode={isDarkMode} currencySymbol={currencySymbol} />;
+                return (
+                    <PLByPlanAdherenceWidget 
+                        trades={trades} 
+                        isDarkMode={isDarkMode} 
+                        currencySymbol={currencySymbol} 
+                        onInfoClick={() => setActiveInfo({
+                            title: "P/L by Plan Adherence",
+                            content: "Shows the correlation between your discipline and your P&L. It answers the question: 'Does following my plan actually make me more money?'\n\nUsually, trades that 'Followed Exactly' show the best results. If your 'Major Deviation' trades are profitable, it might suggest your plan is too restrictive or your intuition is currently outperforming your rules."
+                        })}
+                    />
+                );
             case 'riskReward':
                 return (
                     <div className={`h-full p-8 rounded-[32px] border ${isDarkMode ? 'bg-[#18181b] border-zinc-800' : 'bg-white border-slate-200 shadow-md'}`}>
@@ -2053,9 +2844,11 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
             case 'largestWinLoss': return 'col-span-12 lg:col-span-6';
             case 'symbolPerformance': return 'col-span-12 lg:col-span-6';
             case 'monthlyPerformance': case 'currencyStrength': case 'tradeExit': return 'col-span-12 lg:col-span-4';
+            case 'bestTime': return 'col-span-12 lg:col-span-12'; // Full width for hourly detail
 
             case 'outcomeDist': return 'col-span-12 lg:col-span-4';
             case 'perfByPair': return 'col-span-12 lg:col-span-8';
+            case 'strategyPerf': return 'col-span-12';
             case 'executionTable': return 'col-span-12';
 
             case 'tiltScore': case 'radar': case 'plMindset': case 'plAdherence': return 'col-span-12 lg:col-span-6';
@@ -2100,7 +2893,10 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
                 <div className={`flex p-1 gap-1 ${isDarkMode ? 'bg-[#121214] rounded-[20px] border border-[#1e1e22]' : 'bg-slate-100 rounded-[20px] border border-slate-200'}`}>
                     {tabs.map((tab) => {
                         const isActive = activeTab === tab.id;
-                        const isLocked = isFreeTier && tab.id !== 'overview';
+                        const isLocked = 
+                            (tab.id === 'growth' && !canAccessGrowth) ||
+                            (tab.id === 'discipline' && !canAccessDiscipline) ||
+                            (tab.id === 'comparison' && !canAccessComparison);
                         return (
                             <button 
                                 key={tab.id} 
@@ -2122,21 +2918,21 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
                 </div>
             </header>
 
-            {isFreeTier && activeTab === 'growth' && (
+            {!canAccessGrowth && activeTab === 'growth' && (
                 <LockedView 
                     title="Growth Insights Locked" 
-                    description="Visualizing trade outcome distribution, pair-specific profitability, and detailed execution metrics requires a PRO or PREMIUM subscription." 
+                    description="Visualizing trade outcome distribution, pair-specific profitability, and detailed execution metrics requires a higher tier plan." 
                 />
             )}
 
-            {isFreeTier && activeTab === 'discipline' && (
+            {!canAccessDiscipline && activeTab === 'discipline' && (
                 <LockedView 
                     title="Psychology Radar Locked" 
-                    description="Deep-dive into your Tilt Score, mindset performance radar, and plan adherence correlation metrics are reserved for our Elite traders." 
+                    description="Deep-dive into your Tilt Score, mindset performance radar, and plan adherence correlation metrics are reserved for advanced traders." 
                 />
             )}
 
-            {isFreeTier && activeTab === 'comparison' && (
+            {!canAccessComparison && activeTab === 'comparison' && (
                 <LockedView 
                     title="Symbol Comparison Locked" 
                     description="Side-by-side comparison of multiple trading instruments and comparative equity growth analysis is a PREMIUM feature." 
@@ -2156,7 +2952,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
                     </SortableContext>
                 )}
 
-                {activeTab === 'growth' && !isFreeTier && (
+                {activeTab === 'growth' && canAccessGrowth && (
                     <SortableContext items={growthOrder} strategy={rectSortingStrategy}>
                         <div className="animate-in fade-in duration-500 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 pb-20">
                             {growthOrder.map(id => (
@@ -2168,7 +2964,7 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
                     </SortableContext>
                 )}
 
-                {activeTab === 'discipline' && !isFreeTier && (
+                {activeTab === 'discipline' && canAccessDiscipline && (
                     <SortableContext items={disciplineOrder} strategy={rectSortingStrategy}>
                         <div className="animate-in fade-in duration-500 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 pb-20">
                             {disciplineOrder.map(id => (
@@ -2180,10 +2976,17 @@ const Analytics: React.FC<AnalyticsProps> = ({ isDarkMode, trades = [], userProf
                     </SortableContext>
                 )}
 
-                {activeTab === 'comparison' && !isFreeTier && (
+                {activeTab === 'comparison' && canAccessComparison && (
                     <ComparisonView trades={trades} isDarkMode={isDarkMode} currencySymbol={userProfile?.currencySymbol || '$'} />
                 )}
             </DndContext>
+
+            {activeInfo && (
+                <InfoPanel 
+                    info={activeInfo} 
+                    onClose={() => setActiveInfo(null)} 
+                />
+            )}
         </div>
     );
 };

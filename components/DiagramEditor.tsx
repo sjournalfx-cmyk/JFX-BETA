@@ -5,9 +5,12 @@ import { GoogleGenAI } from '@google/genai';
 import { 
   Play, Sparkles, Download, Copy, RefreshCw, ZoomIn, ZoomOut, 
   Code, LayoutTemplate, Maximize2, Minimize2, Heart, Search,
-  Grid, List, X, Star, Wand2, Palette, ArrowRight, Box, Diamond, Circle, AlertCircle
+  Grid, List, X, Star, Wand2, Palette, ArrowRight, Box, Diamond, Circle, AlertCircle, Save, FolderOpen, Plus, Trash2
 } from 'lucide-react';
 import { Select } from './Select';
+import { StrategyDiagram } from '../types';
+import { dataService } from '../services/dataService';
+import { useToast } from './ui/Toast';
 
 interface DiagramEditorProps {
   isDarkMode: boolean;
@@ -355,6 +358,7 @@ const TEMPLATES: Template[] = [
 ];
 
 const DiagramEditor: React.FC<DiagramEditorProps> = ({ isDarkMode }) => {
+  const { addToast } = useToast();
   const [code, setCode] = useState<string>(TEMPLATES[0].code);
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -365,6 +369,13 @@ const DiagramEditor: React.FC<DiagramEditorProps> = ({ isDarkMode }) => {
   // Customization
   const [diagramTheme, setDiagramTheme] = useState<'default' | 'forest' | 'neutral' | 'dark' | 'base'>('default');
 
+  // Persistence State
+  const [currentDiagramId, setCurrentDiagramId] = useState<string | null>(null);
+  const [diagramName, setDiagramName] = useState('New Strategy Map');
+  const [savedDiagrams, setSavedDiagrams] = useState<StrategyDiagram[]>([]);
+  const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
   // Template Browser State
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [templateSearch, setTemplateSearch] = useState('');
@@ -373,6 +384,80 @@ const DiagramEditor: React.FC<DiagramEditorProps> = ({ isDarkMode }) => {
 
   const outputRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
+
+  // Load saved diagrams on mount
+  useEffect(() => {
+    fetchSavedDiagrams();
+  }, []);
+
+  const fetchSavedDiagrams = async () => {
+    try {
+      const data = await dataService.getDiagrams();
+      setSavedDiagrams(data);
+    } catch (err) {
+      console.error("Failed to fetch diagrams:", err);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!diagramName.trim()) {
+      addToast({ type: 'warning', title: 'Name Required', message: 'Please give your strategy map a name.' });
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      const saved = await dataService.saveDiagram({
+        id: currentDiagramId || undefined,
+        name: diagramName,
+        code: code,
+        category: 'Custom'
+      });
+      
+      if (!currentDiagramId) setCurrentDiagramId(saved.id);
+      
+      fetchSavedDiagrams();
+      addToast({ type: 'success', title: 'Strategy Saved', message: `"${diagramName}" has been saved to your profile.` });
+    } catch (err) {
+      console.error("Save failed:", err);
+      addToast({ type: 'error', title: 'Save Failed', message: 'Could not save the diagram.' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleLoadDiagram = (diagram: StrategyDiagram) => {
+    setCode(diagram.code);
+    setDiagramName(diagram.name);
+    setCurrentDiagramId(diagram.id);
+    setIsLoadModalOpen(false);
+    addToast({ type: 'info', title: 'Diagram Loaded', message: `"${diagram.name}" is now active.` });
+  };
+
+  const handleDeleteDiagram = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Are you sure you want to delete this saved strategy map?")) return;
+
+    try {
+      await dataService.deleteDiagram(id);
+      if (currentDiagramId === id) {
+        setCurrentDiagramId(null);
+        setDiagramName('New Strategy Map');
+      }
+      fetchSavedDiagrams();
+      addToast({ type: 'success', title: 'Deleted', message: 'Strategy map removed.' });
+    } catch (err) {
+      console.error("Delete failed:", err);
+      addToast({ type: 'error', title: 'Delete Failed', message: 'Could not delete the diagram.' });
+    }
+  };
+
+  const handleNewDiagram = () => {
+    if (code !== TEMPLATES[0].code && !confirm("Discard current changes and start a new diagram?")) return;
+    setCode(TEMPLATES[0].code);
+    setDiagramName('New Strategy Map');
+    setCurrentDiagramId(null);
+  };
 
   // Initialize Mermaid with dynamic theme
   useEffect(() => {
@@ -516,14 +601,24 @@ const DiagramEditor: React.FC<DiagramEditorProps> = ({ isDarkMode }) => {
   return (
     <div className={`w-full h-full flex flex-col p-6 overflow-hidden relative ${isDarkMode ? 'bg-zinc-950 text-zinc-200' : 'bg-slate-50 text-slate-900'}`}>
       
-      <header className="mb-6 flex justify-between items-end shrink-0">
-        <div>
-           <h1 className="text-2xl font-bold tracking-tight mb-1">Strategy Mapper</h1>
+      <header className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4 shrink-0">
+        <div className="flex-1">
+           <div className="flex items-center gap-3 mb-1">
+              <input 
+                value={diagramName}
+                onChange={(e) => setDiagramName(e.target.value)}
+                className={`text-2xl font-bold tracking-tight bg-transparent border-b-2 border-transparent focus:border-indigo-500 outline-none transition-all ${isDarkMode ? 'text-white' : 'text-slate-900'}`}
+                placeholder="Strategy Name"
+              />
+              <button onClick={handleNewDiagram} className="p-1.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-zinc-500" title="New Diagram">
+                <Plus size={16} />
+              </button>
+           </div>
            <p className={`text-sm ${isDarkMode ? 'text-zinc-500' : 'text-slate-500'}`}>Visualize trading algorithms, risk plans, and logic flows.</p>
         </div>
         
-        <div className="flex gap-3">
-             <div className="flex items-center gap-2 mr-4">
+        <div className="flex flex-wrap items-center gap-3">
+             <div className="flex items-center gap-2 mr-2">
                  <span className="text-xs font-bold uppercase opacity-50">Theme:</span>
                  <Select 
                     value={diagramTheme}
@@ -539,11 +634,30 @@ const DiagramEditor: React.FC<DiagramEditorProps> = ({ isDarkMode }) => {
                     className="w-32"
                  />
              </div>
+
+            <button 
+                onClick={() => setIsLoadModalOpen(true)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-all ${isDarkMode ? 'border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-indigo-400' : 'bg-indigo-50 border-indigo-100 hover:bg-indigo-100 text-indigo-600'}`}
+            >
+                <FolderOpen size={16} /> Load Saved
+            </button>
+
+            <button 
+                onClick={handleSave}
+                disabled={isSaving}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 disabled:opacity-50`}
+            >
+                {isSaving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />} 
+                {currentDiagramId ? 'Update' : 'Save Mapper'}
+            </button>
+
+            <div className={`w-px h-8 mx-1 ${isDarkMode ? 'bg-zinc-800' : 'bg-slate-200'}`} />
+
             <button 
                 onClick={() => setIsTemplateModalOpen(true)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-all ${isDarkMode ? 'border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300' : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'}`}
             >
-                <LayoutTemplate size={16} /> Browse Templates
+                <LayoutTemplate size={16} /> Templates
             </button>
             <button 
                 onClick={handleDownload}
@@ -766,6 +880,60 @@ const DiagramEditor: React.FC<DiagramEditorProps> = ({ isDarkMode }) => {
                       </div>
                   </div>
 
+              </div>
+          </div>
+      )}
+
+      {/* --- Load Saved Modal --- */}
+      {isLoadModalOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+              <div 
+                  className={`w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col overflow-hidden ${isDarkMode ? 'bg-[#09090b] border border-[#27272a]' : 'bg-white'}`}
+                  onClick={(e) => e.stopPropagation()}
+              >
+                  <div className={`px-6 py-4 border-b shrink-0 flex items-center justify-between ${isDarkMode ? 'border-[#27272a]' : 'border-slate-100'}`}>
+                      <h2 className="text-lg font-bold">Saved Strategy Maps</h2>
+                      <button onClick={() => setIsLoadModalOpen(false)} className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-slate-100 text-slate-500'}`}>
+                          <X size={20} />
+                      </button>
+                  </div>
+
+                  <div className="p-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                      {savedDiagrams.length === 0 ? (
+                          <div className="py-12 text-center opacity-40">
+                              <FolderOpen size={48} className="mx-auto mb-4" />
+                              <p className="font-bold">No saved strategy maps yet.</p>
+                              <p className="text-sm">Save your first one to see it here!</p>
+                          </div>
+                      ) : (
+                          <div className="space-y-2">
+                              {savedDiagrams.map(diagram => (
+                                  <div 
+                                      key={diagram.id}
+                                      onClick={() => handleLoadDiagram(diagram)}
+                                      className={`p-4 rounded-xl border flex items-center justify-between group cursor-pointer transition-all ${isDarkMode ? 'bg-zinc-900 border-zinc-800 hover:border-indigo-500' : 'bg-slate-50 border-slate-200 hover:border-indigo-300'}`}
+                                  >
+                                      <div>
+                                          <h4 className="font-bold group-hover:text-indigo-500 transition-colors">{diagram.name}</h4>
+                                          <p className="text-[10px] opacity-40 font-mono uppercase">
+                                              Last updated: {new Date(diagram.updatedAt).toLocaleDateString()}
+                                          </p>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                          <button 
+                                              onClick={(e) => handleDeleteDiagram(diagram.id, e)}
+                                              className="p-2 rounded-lg text-rose-500 opacity-0 group-hover:opacity-100 hover:bg-rose-500/10 transition-all"
+                                              title="Delete"
+                                          >
+                                              <Trash2 size={16} />
+                                          </button>
+                                          <ArrowRight size={16} className="text-zinc-500" />
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                      )}
+                  </div>
               </div>
           </div>
       )}

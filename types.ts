@@ -6,7 +6,7 @@ export interface UserProfile {
   initialBalance: number;
   currency: string;
   currencySymbol: string;
-  syncMethod: 'Manual' | 'EA_CONNECT';
+  syncMethod: 'Manual' | 'EA_CONNECT' | 'BROKER_SYNC';
   experienceLevel: 'Beginner' | 'Intermediate' | 'Advanced' | 'Pro';
   tradingStyle: 'Scalper' | 'Day Trader' | 'Swing Trader' | 'Investor';
   onboarded: boolean;
@@ -15,6 +15,11 @@ export interface UserProfile {
   eaConnected?: boolean;
   autoJournal?: boolean;
   avatarUrl?: string;
+  themePreference?: 'default' | 'midnight';
+  chartConfig?: any;
+  keepChartsAlive?: boolean;
+  isBetaTester?: boolean;
+  feedbackSent?: boolean;
 }
 
 export type AssetType = 'Forex' | 'Indices' | 'Commodities' | 'Crypto' | 'Stocks';
@@ -76,6 +81,13 @@ export interface GoalMilestone {
   dateAchieved?: string;
 }
 
+export interface ManualEntry {
+  id: string;
+  value: number;
+  date: string;
+  note?: string;
+}
+
 export interface Goal {
   id: string;
   title: string;
@@ -91,6 +103,7 @@ export interface Goal {
     filterTag?: string;
   };
   manualProgress?: number;
+  manualEntries?: ManualEntry[];
   milestones: GoalMilestone[];
   status: 'active' | 'completed' | 'failed' | 'paused';
   createdAt: string;
@@ -151,4 +164,14 @@ export interface PlaybookEntry {
   phaseImages?: Record<string, string>;
   status: 'Incubating' | 'Active' | 'Archived';
   lastUpdated: string;
+}
+
+export interface StrategyDiagram {
+  id: string;
+  name: string;
+  code: string;
+  category?: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
 }

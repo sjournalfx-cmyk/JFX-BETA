@@ -6,7 +6,8 @@ import {
   ChevronRight, ArrowRight, CheckCircle2,
   Lock, Mail, Smartphone, ExternalLink,
   Flame, Award, Briefcase, Camera, Palette,
-  Sun, Moon, Copy, Check, Crown
+  Sun, Moon, Copy, Check, Crown, HelpCircle,
+  MessageSquare, Youtube, Github, LifeBuoy, Medal
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { APP_CONSTANTS } from '../lib/constants';
@@ -52,6 +53,8 @@ interface SettingsProps {
   tradesThisMonth?: number;
   totalNotes?: number;
   totalImages?: number;
+  tradesCount?: number;
+  initialTab?: 'profile' | 'account' | 'appearance' | 'billing' | 'security' | 'help';
 }
 
 const Settings: React.FC<SettingsProps> = ({ 
@@ -63,13 +66,64 @@ const Settings: React.FC<SettingsProps> = ({
   onToggleTheme,
   tradesThisMonth = 0,
   totalNotes = 0,
-  totalImages = 0
+  totalImages = 0,
+  tradesCount = 0,
+  initialTab = 'profile'
 }) => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'account' | 'appearance' | 'billing' | 'security'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'account' | 'appearance' | 'billing' | 'security' | 'help'>(initialTab);
   const [formData, setFormData] = useState<UserProfile>({ ...userProfile });
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveStatus] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState(false);
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [feedbackSuccess, setFeedbackSuccess] = useState(false);
+
+  const getTesterRank = () => {
+    if (tradesCount >= 30) return { label: 'Elite Tester', level: 4, next: 'Max Level', color: 'text-amber-400', bg: 'bg-amber-400/10', bar: 'bg-amber-400' };
+    if (tradesCount >= 15) return { label: 'Beta Specialist', level: 3, next: '30 trades', color: 'text-purple-400', bg: 'bg-purple-400/10', bar: 'bg-purple-400' };
+    if (tradesCount >= 5) return { label: 'Active Tester', level: 2, next: '15 trades', color: 'text-indigo-400', bg: 'bg-indigo-400/10', bar: 'bg-indigo-400' };
+    return { label: 'Beta Scout', level: 1, next: '5 trades', color: 'text-emerald-400', bg: 'bg-emerald-400/10', bar: 'bg-emerald-400' };
+  };
+
+  const rank = getTesterRank();
+
+  const handleFeedbackSubmit = async () => {
+    setIsSubmittingFeedback(true);
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Mark feedback as sent in profile
+    const updatedProfile = { ...formData, feedbackSent: true };
+    await onUpdateProfile(updatedProfile);
+    setFormData(updatedProfile);
+    
+    setIsSubmittingFeedback(false);
+    setFeedbackSuccess(true);
+    setTimeout(() => setFeedbackSuccess(false), 5000);
+  };
+
+  // Update active tab when initialTab prop changes
+  React.useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
+
+  // Live Theme Preview
+  React.useEffect(() => {
+    if (activeTab === 'appearance' && formData.plan === 'PREMIUM (MASTERS)') {
+      document.body.classList.remove('theme-midnight');
+      if (formData.themePreference && formData.themePreference !== 'default') {
+        document.body.classList.add(`theme-${formData.themePreference}`);
+      }
+    }
+    
+    // Restore original theme when leaving tab or unmounting
+    return () => {
+      document.body.classList.remove('theme-midnight');
+      if (userProfile?.themePreference && userProfile.themePreference !== 'default') {
+        document.body.classList.add(`theme-${userProfile.themePreference}`);
+      }
+    };
+  }, [formData.themePreference, activeTab, userProfile?.themePreference, formData.plan]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -115,6 +169,7 @@ const Settings: React.FC<SettingsProps> = ({
             { id: 'appearance', label: 'Appearance', icon: Palette },
             { id: 'billing', label: 'Plan & Billing', icon: CreditCard },
             { id: 'security', label: 'Security', icon: Shield },
+            { id: 'help', label: 'Help & Feedback', icon: HelpCircle },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -171,6 +226,17 @@ const Settings: React.FC<SettingsProps> = ({
                           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                           className={inputClasses}
                         />
+                      </div>
+                      <div className="group">
+                        <label className={labelClasses}>Email Address</label>
+                        <div className="relative">
+                          <Mail className="absolute left-0 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+                          <input
+                            value={userEmail || ''}
+                            readOnly
+                            className={inputClasses + " pl-8 opacity-60 cursor-not-allowed"}
+                          />
+                        </div>
                       </div>
                       <div className="group">
                         <label className={labelClasses}>Country</label>
@@ -383,6 +449,63 @@ const Settings: React.FC<SettingsProps> = ({
                       <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-lg ${isDarkMode ? 'left-7' : 'left-1'}`} />
                     </button>
                   </div>
+
+                  {formData.plan === 'PREMIUM (MASTERS)' && (
+                    <div className={`p-8 rounded-3xl border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                      <div className="flex items-center gap-3 mb-6">
+                        <Crown size={20} className="text-amber-500" />
+                        <h3 className="text-lg font-bold">Premium Themes</h3>
+                        <div className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 text-[10px] font-black uppercase tracking-widest border border-amber-500/20 ml-auto">Masters Exclusive</div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {[
+                          { id: 'default', label: 'Obsidian', desc: 'Standard dark aesthetic.', bg: 'bg-[#050505]', accent: 'bg-indigo-500' },
+                          { id: 'midnight', label: 'Midnight Blue', desc: 'Deep ocean atmosphere.', bg: 'bg-[#020617]', accent: 'bg-sky-500' },
+                        ].map((t) => (
+                          <button
+                            key={t.id}
+                            onClick={() => setFormData({ ...formData, themePreference: t.id as any })}
+                            className={`p-4 rounded-2xl border-2 transition-all text-left flex flex-col gap-3 group relative overflow-hidden ${formData.themePreference === t.id ? 'border-[#FF4F01] bg-[#FF4F01]/5' : 'border-transparent hover:border-zinc-700'}`}
+                          >
+                            <div className={`w-full h-20 rounded-xl ${t.bg} border border-white/10 relative overflow-hidden p-3`}>
+                               <div className={`w-1/2 h-2 rounded-full ${t.accent} opacity-50 mb-2`} />
+                               <div className="w-1/3 h-2 rounded-full bg-white/10 mb-2" />
+                               <div className="w-2/3 h-2 rounded-full bg-white/10" />
+                               {formData.themePreference === t.id && (
+                                 <div className="absolute top-2 right-2 text-[#FF4F01]">
+                                   <CheckCircle2 size={16} />
+                                 </div>
+                               )}
+                            </div>
+                            <div>
+                              <p className="font-bold text-sm">{t.label}</p>
+                              <p className="text-[10px] opacity-50 font-medium">{t.desc}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className={`p-8 rounded-3xl border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className="flex items-center gap-3 mb-2">
+                      <Zap size={20} className="text-indigo-500" />
+                      <h3 className="text-lg font-bold">Performance</h3>
+                    </div>
+                    <div className="flex items-center justify-between p-4 rounded-2xl bg-black/10 dark:bg-white/5">
+                      <div className="max-w-[80%]">
+                        <p className="text-sm font-bold">Keep Charts Alive in Background</p>
+                        <p className="text-xs opacity-50">Maintains chart state (drawings) when switching pages. Disable if the app feels slow.</p>
+                      </div>
+                      <button
+                        onClick={() => setFormData({ ...formData, keepChartsAlive: !formData.keepChartsAlive })}
+                        className={`w-12 h-6 rounded-full transition-all relative ${formData.keepChartsAlive ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+                      >
+                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${formData.keepChartsAlive ? 'right-1' : 'left-1'}`} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -398,7 +521,7 @@ const Settings: React.FC<SettingsProps> = ({
                       <p className="text-sm font-medium opacity-60 mb-8">
                         {formData.plan === 'FREE TIER (JOURNALER)' && 'Lightweight journaling for beginners.'}
                         {formData.plan === 'PRO TIER (ANALYSTS)' && 'Data-driven automated trading.'}
-                        {formData.plan === 'PREMIUM (MASTERS)' && 'Direct integration for professionals.'}
+                        {formData.plan === 'PREMIUM (MASTERS)' && 'Full-capacity logging & advanced mapping.'}
                       </p>
                     </div>
                     <div className="p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20">
@@ -464,15 +587,15 @@ const Settings: React.FC<SettingsProps> = ({
                     },
                     { 
                       id: 'PRO TIER (ANALYSTS)', 
-                      price: '4.99', 
-                      desc: 'EA Sync technology & goals.',
+                      price: '0', 
+                      desc: 'Free for Beta Testers - EA Sync & Goals.',
                       features: ['500 trades / mo', '1 Chart Layout', 'Desktop Bridge']
                     },
                     { 
                       id: 'PREMIUM (MASTERS)', 
-                      price: '14.99', 
-                      desc: 'Direct broker sync & AI insights.',
-                      features: ['Unlimited trades', 'Direct API Sync', 'Voice Notes']
+                      price: '0', 
+                      desc: 'Free for Beta Testers - Full-capacity logging.',
+                      features: ['Unlimited trades', 'Custom Chart Layouts', 'Unlimited Notes']
                     }
                   ].map((plan) => (
                     <div key={plan.id} className={`p-6 rounded-2xl border flex items-center justify-between transition-all ${formData.plan === plan.id ? 'border-[#FF4F01] bg-[#FF4F01]/5' : isDarkMode ? 'bg-zinc-900/50 border-zinc-800' : 'bg-slate-50 border-slate-100'}`}>
@@ -487,8 +610,14 @@ const Settings: React.FC<SettingsProps> = ({
                       </div>
                       <div className="flex items-center gap-6">
                         <div className="text-right">
-                          <p className="text-lg font-black">${plan.price}</p>
-                          <p className="text-[10px] font-bold uppercase opacity-40">/month</p>
+                          {plan.price === '0' && plan.id !== 'FREE TIER (JOURNALER)' ? (
+                            <p className="text-sm font-black text-[#FF4F01]">FREE (BETA)</p>
+                          ) : (
+                            <>
+                              <p className="text-lg font-black">${plan.price}</p>
+                              <p className="text-[10px] font-bold uppercase opacity-40">/month</p>
+                            </>
+                          )}
                         </div>
                         <button 
                           onClick={() => setFormData({ ...formData, plan: plan.id })}
@@ -509,16 +638,6 @@ const Settings: React.FC<SettingsProps> = ({
                 <div className="space-y-6">
                   <div className="flex items-center justify-between p-6 rounded-2xl border border-dashed border-zinc-800">
                     <div className="flex items-center gap-4">
-                      <div className="p-3 bg-indigo-500/10 text-indigo-500 rounded-xl"><Mail size={20} /></div>
-                      <div>
-                        <p className="text-sm font-bold">Email Authentication</p>
-                        <p className="text-xs opacity-50">Verified: {userEmail || 'trader@journalfx.com'}</p>
-                      </div>
-                    </div>
-                    <button className="text-[10px] font-black uppercase underline">Change</button>
-                  </div>
-                  <div className="flex items-center justify-between p-6 rounded-2xl border border-dashed border-zinc-800">
-                    <div className="flex items-center gap-4">
                       <div className="p-3 bg-amber-500/10 text-amber-500 rounded-xl"><Lock size={20} /></div>
                       <div>
                         <p className="text-sm font-bold">Two-Factor Auth</p>
@@ -527,6 +646,130 @@ const Settings: React.FC<SettingsProps> = ({
                     </div>
                     <button className="text-[10px] font-black uppercase underline text-rose-500">Disable</button>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'help' && (
+              <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                {/* Tester Progress Section */}
+                <div className={`p-8 rounded-3xl border relative overflow-hidden ${isDarkMode ? 'bg-[#1a1b23] border-zinc-800' : 'bg-white border-slate-100 shadow-sm'}`}>
+                  <div className="absolute top-0 right-0 p-8 opacity-10">
+                    <Medal size={120} className={rank.color} />
+                  </div>
+                  
+                  <div className="relative z-10">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className={`p-3 rounded-2xl ${rank.bg} ${rank.color}`}>
+                        <Medal size={24} />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-black tracking-tight">Tester Progress</h3>
+                        <p className="text-xs font-bold opacity-40 uppercase tracking-widest">Rank: {rank.label}</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-end">
+                        <span className="text-sm font-bold">Progress to next rank</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Next: {rank.next}</span>
+                      </div>
+                      <div className="h-3 w-full bg-black/20 dark:bg-white/5 rounded-full overflow-hidden p-0.5 border border-white/5">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-1000 ${rank.bar}`} 
+                          style={{ width: `${Math.min(100, (tradesCount / (rank.level === 1 ? 5 : rank.level === 2 ? 15 : 30)) * 100)}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-[10px] font-black uppercase tracking-widest opacity-40">
+                        <span>{tradesCount} trades logged</span>
+                        <span>Level {rank.level} / 4</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-8 flex gap-4">
+                      <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border ${formData.feedbackSent ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-zinc-500/10 text-zinc-500 border-zinc-500/20'}`}>
+                        {formData.feedbackSent ? '✓ Feedback Contribution' : '○ Feedback Needed'}
+                      </div>
+                      <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border ${tradesCount >= 5 ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-zinc-500/10 text-zinc-500 border-zinc-500/20'}`}>
+                        {tradesCount >= 5 ? '✓ Active Reporter' : '○ Not Enough Data'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Support Resources */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {[
+                    { title: 'Documentation', icon: HelpCircle, color: 'text-indigo-500', desc: 'Learn how to master JournalFX.', link: '#' },
+                    { title: 'Video Tutorials', icon: Youtube, color: 'text-red-500', desc: 'Watch step-by-step guides.', link: '#' },
+                    { title: 'Community Discord', icon: MessageSquare, color: 'text-blue-500', desc: 'Join other traders.', link: '#' },
+                    { title: 'Technical Support', icon: LifeBuoy, color: 'text-emerald-500', desc: 'Get help with your account.', link: '#' },
+                  ].map((item, i) => (
+                    <a
+                      key={i}
+                      href={item.link}
+                      className={`p-6 rounded-2xl border transition-all hover:scale-[1.02] ${isDarkMode ? 'bg-zinc-900/50 border-zinc-800 hover:border-zinc-700' : 'bg-white border-slate-100 shadow-sm hover:shadow-md'}`}
+                    >
+                      <div className="flex items-center gap-4 mb-3">
+                        <div className={`p-3 rounded-xl bg-black/5 dark:bg-white/5 ${item.color}`}>
+                          <item.icon size={20} />
+                        </div>
+                        <h4 className="font-bold text-sm">{item.title}</h4>
+                      </div>
+                      <p className="text-xs opacity-50">{item.desc}</p>
+                    </a>
+                  ))}
+                </div>
+
+                {/* Feedback Form Section */}
+                <div className={`p-8 rounded-3xl border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                  <div className="flex items-center gap-3 mb-6">
+                    <MessageSquare size={20} className="text-[#FF4F01]" />
+                    <h3 className="text-lg font-bold">Send Feedback</h3>
+                  </div>
+                  
+                  {feedbackSuccess ? (
+                    <div className="py-12 flex flex-col items-center text-center animate-in fade-in zoom-in-95">
+                      <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mb-4">
+                        <CheckCircle2 size={32} />
+                      </div>
+                      <h4 className="text-xl font-bold mb-2">Feedback Received!</h4>
+                      <p className="text-sm opacity-50 max-w-xs">Thank you for contributing to the JFX Beta. Your input has been logged.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <div className="group">
+                        <label className={labelClasses}>Subject</label>
+                        <input
+                          placeholder="Feature request, bug report, etc."
+                          className={inputClasses}
+                        />
+                      </div>
+                      <div className="group">
+                        <label className={labelClasses}>Message</label>
+                        <textarea
+                          placeholder="Tell us what's on your mind..."
+                          rows={4}
+                          className={`w-full bg-transparent border-b-2 py-3 text-sm font-medium outline-none transition-all resize-none ${isDarkMode
+                            ? 'border-zinc-800 focus:border-[#FF4F01] text-white'
+                            : 'border-zinc-200 focus:border-[#FF4F01] text-zinc-900'
+                            }`}
+                        />
+                      </div>
+                      <button 
+                        onClick={handleFeedbackSubmit}
+                        disabled={isSubmittingFeedback}
+                        className="w-full py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2"
+                      >
+                        {isSubmittingFeedback ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Sending...
+                          </>
+                        ) : 'Submit Feedback'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

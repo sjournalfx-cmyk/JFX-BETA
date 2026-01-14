@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
-  Mail, Lock, ArrowRight, Github, 
-  Chrome, Twitter, CheckCircle2, AlertCircle, Eye, EyeOff 
+  Mail, Lock, ArrowRight,
+  Chrome, CheckCircle2, AlertCircle, Eye, EyeOff 
 } from 'lucide-react';
 import { authService } from '../services/authService';
 
@@ -20,6 +20,7 @@ const Auth: React.FC<AuthProps> = ({ isDarkMode, onLogin, onRegister }) => {
   // Form State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,9 +76,6 @@ const Auth: React.FC<AuthProps> = ({ isDarkMode, onLogin, onRegister }) => {
 
         {/* Content */}
         <div className="relative z-10 p-12 max-w-lg">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 flex items-center justify-center text-white font-black text-3xl shadow-2xl shadow-indigo-600/30 mb-8">
-            J
-          </div>
           <h1 className="text-5xl font-black tracking-tight text-white mb-6 leading-tight">
             Master your <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">trading psychology.</span>
@@ -111,17 +109,9 @@ const Auth: React.FC<AuthProps> = ({ isDarkMode, onLogin, onRegister }) => {
           </div>
 
           <div className="space-y-4 mb-8">
-             <button className={`w-full flex items-center justify-center gap-3 py-3 rounded-xl border font-bold text-sm transition-all hover:bg-zinc-50 dark:hover:bg-white/5 ${borderColor}`}>
-                <Chrome size={18} /> Continue with Google
+             <button className={`w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border-2 font-black text-sm transition-all hover:scale-[1.01] active:scale-[0.99] ${isDarkMode ? 'bg-white/5 border-white/5 hover:bg-white/10 text-white' : 'bg-slate-50 border-slate-100 hover:bg-slate-100 text-slate-900'}`}>
+                <Chrome size={18} className="text-indigo-500" /> Continue with Google
              </button>
-             <div className="flex gap-4">
-                <button className={`flex-1 flex items-center justify-center gap-3 py-3 rounded-xl border font-bold text-sm transition-all hover:bg-zinc-50 dark:hover:bg-white/5 ${borderColor}`}>
-                  <Twitter size={18} />
-                </button>
-                <button className={`flex-1 flex items-center justify-center gap-3 py-3 rounded-xl border font-bold text-sm transition-all hover:bg-zinc-50 dark:hover:bg-white/5 ${borderColor}`}>
-                  <Github size={18} />
-                </button>
-             </div>
           </div>
 
           <div className="relative mb-8">
@@ -177,6 +167,23 @@ const Auth: React.FC<AuthProps> = ({ isDarkMode, onLogin, onRegister }) => {
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
+            </div>
+
+            <div className="flex items-center justify-between px-1">
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <div className="relative flex items-center">
+                  <input 
+                    type="checkbox" 
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="sr-only" 
+                  />
+                  <div className={`w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center ${rememberMe ? 'bg-indigo-500 border-indigo-500' : borderColor + ' bg-transparent'}`}>
+                    {rememberMe && <CheckCircle2 size={12} className="text-white" />}
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-zinc-500 group-hover:text-zinc-400 transition-colors">Remember device</span>
+              </label>
             </div>
 
             <button 

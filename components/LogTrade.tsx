@@ -5,10 +5,13 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 import RichTextEditor from './RichTextEditor';
 import { Select } from './Select';
 import ConfirmationModal from './ConfirmationModal';
+import { APP_CONSTANTS, PLAN_FEATURES } from '../lib/constants';
+import { useToast } from './ui/Toast';
 
 interface LogTradeProps {
     isDarkMode: boolean;
     onSave: (trade: Trade) => void;
+    onBatchSave?: (trades: Trade[]) => Promise<void>;
     initialTrade?: Trade;
     onCancel?: () => void;
     currencySymbol: string;
@@ -160,10 +163,19 @@ const StepIndicator = ({ current, total, isDarkMode }: { current: number, total:
     </div>
 );
 
-const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, onCancel, currencySymbol, userProfile }) => {
+const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, onBatchSave, initialTrade, onCancel, currencySymbol, userProfile }) => {
     const [step, setStep] = useState(1);
-    // More robust check for free tier
-    const isFreeTier = !userProfile || userProfile.plan === 'FREE TIER (JOURNALER)';
+    const [isSaving, setIsSaving] = useState(false);
+    const { addToast } = useToast();
+    
+    const currentPlan = userProfile?.plan || APP_CONSTANTS.PLANS.FREE;
+    const isFreeTier = currentPlan === APP_CONSTANTS.PLANS.FREE;
+    const features = PLAN_FEATURES[currentPlan];
+    const canUploadImages = features.allowImageUploads;
+    const canImportTrades = features.directBrokerSync || features.allowImageUploads; // Assuming import might be restricted or tied to something else, using image uploads as proxy for now or just allowing it if manual import is allowed on pro. Actually "Import MT4/MT5" is likely manual or drag drop of CSV/HTML or EA. The current code checked isFreeTier. Let's assume PRO+ can import.
+    // The previous code checked `isFreeTier` for "Import MT4/MT5" button. In `constants`, Free tier has `allowImageUploads: false`. Pro has `true`. Let's use `!canUploadImages` as the restriction flag for now to match previous logic, or better, strictly check plan level if needed. 
+    // Re-reading code: `disabled={isFreeTier}` on Import button.
+    const isRestricted = !canUploadImages; // Using image capability as proxy for "Basic Tier" restrictions in LogTrade for now.
 
     // Confirmation Modal State
     const [confirmModal, setConfirmModal] = useState<{
@@ -309,6 +321,137 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
 
     const beforeInputRef = useRef<HTMLInputElement>(null);
     const afterInputRef = useRef<HTMLInputElement>(null);
+    const importTradesInputRef = useRef<HTMLInputElement>(null);
+
+    const handleImportMT4MT5 = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !onBatchSave) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = event.target?.result as string;
+                if (!text) return;
+
+                // Simple CSV Parser logic for MT4/MT5 Standard Account History Export
+                const lines = text.split(/\r?\n/);
+                if (lines.length < 2) return;
+
+                // Try to find the header row
+                let headerIdx = lines.findIndex(l => l.toLowerCase().includes('ticket') && l.toLowerCase().includes('profit'));
+                if (headerIdx === -1) {
+                    // Fallback to first line if no clear header found
+                    headerIdx = 0;
+                }
+
+                const headers = lines[headerIdx].split(/,|\t/).map(h => h.trim().replace(/"/g, ''));
+                const tradeLines = lines.slice(headerIdx + 1);
+
+                const importedTrades: Trade[] = [];
+
+                tradeLines.forEach(line => {
+                    const values = line.split(/,|\t/).map(v => v.trim().replace(/"/g, ''));
+                    if (values.length < headers.length || !values[0]) return;
+
+                    const tradeObj: any = {};
+                    headers.forEach((h, i) => {
+                        tradeObj[h.toLowerCase()] = values[i];
+                    });
+
+                    // Mapping Logic (adjust based on common MT4/MT5 field names)
+                    const ticket = tradeObj.ticket || tradeObj['#'];
+                    const openTime = tradeObj['open time'] || tradeObj['time'];
+                    const type = tradeObj.type; // buy/sell
+                    const size = parseFloat(tradeObj.size || tradeObj.volume || '0');
+                    const item = tradeObj.item || tradeObj.symbol;
+                    const openPrice = parseFloat(tradeObj['open price'] || tradeObj['price'] || '0');
+                    const sl = parseFloat(tradeObj['s/l'] || '0');
+                    const tp = parseFloat(tradeObj['t/p'] || '0');
+                    const closeTime = tradeObj['close time'] || tradeObj['time'];
+                    const closePrice = parseFloat(tradeObj['close price'] || tradeObj['price'] || '0');
+                    const profit = parseFloat(tradeObj.profit || '0');
+                    const swap = parseFloat(tradeObj.swap || '0');
+                    const commission = parseFloat(tradeObj.commission || '0');
+
+                    if (!item || isNaN(profit) || !type) return;
+                    if (type.toLowerCase() !== 'buy' && type.toLowerCase() !== 'sell') return; // Skip deposits/withdrawals
+
+                    const netPnl = profit + swap + commission;
+                    const result = netPnl > 0 ? 'Win' : (netPnl < 0 ? 'Loss' : 'BE');
+
+                    // Parse Date/Time
+                    // Standard MT4 format: 2023.10.25 14:30:05
+                    let date = new Date().toISOString().split('T')[0];
+                    let time = '00:00';
+                    if (openTime) {
+                        const parts = openTime.split(' ');
+                        if (parts.length >= 1) date = parts[0].replace(/\./g, '-');
+                        if (parts.length >= 2) time = parts[1].slice(0, 5);
+                    }
+
+                    // Determine Asset Type
+                    let assetType: AssetType = 'Forex';
+                    const upperItem = item.toUpperCase();
+                    if (upperItem.includes('USD') || upperItem.includes('EUR') || upperItem.includes('GBP')) assetType = 'Forex';
+                    if (upperItem.includes('NAS') || upperItem.includes('US30') || upperItem.includes('GER') || upperItem.includes('DAX')) assetType = 'Indices';
+                    if (upperItem.includes('XAU') || upperItem.includes('GOLD') || upperItem.includes('OIL') || upperItem.includes('XAG')) assetType = 'Commodities';
+                    if (upperItem.includes('BTC') || upperItem.includes('ETH')) assetType = 'Crypto';
+
+                    const newTrade: Trade = {
+                        id: `imported-${ticket || Date.now() + Math.random()}`,
+                        ticketId: ticket,
+                        pair: item.toUpperCase(),
+                        assetType,
+                        date,
+                        time,
+                        session: getSessionFromTime(time),
+                        direction: type.toLowerCase() === 'buy' ? 'Long' : 'Short',
+                        entryPrice: openPrice,
+                        exitPrice: closePrice,
+                        stopLoss: sl,
+                        takeProfit: tp,
+                        lots: size,
+                        result,
+                        pnl: netPnl,
+                        rr: sl && openPrice ? Math.abs(openPrice - tp) / Math.abs(openPrice - sl) : 0,
+                        rating: 0,
+                        tags: ['Imported'],
+                        notes: `Imported from MT4/MT5. Ticket: ${ticket}`,
+                        planAdherence: 'No Plan',
+                        mindset: 'Neutral',
+                        emotions: []
+                    };
+
+                    importedTrades.push(newTrade);
+                });
+
+                if (importedTrades.length > 0) {
+                    setConfirmModal({
+                        isOpen: true,
+                        title: 'Import Trades',
+                        description: `Found ${importedTrades.length} trades in the file. Would you like to import them now?`,
+                        showCancel: true,
+                        onConfirm: async () => {
+                            await onBatchSave(importedTrades);
+                            setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                        }
+                    });
+                } else {
+                    addToast({
+                        type: 'error',
+                        title: 'Import Failed',
+                        message: 'No valid trades found in the file. Ensure it is a standard MT4/MT5 Account History export.'
+                    });
+                }
+
+            } catch (err) {
+                console.error("Import error:", err);
+            }
+        };
+        reader.readAsText(file);
+        // Clear input so same file can be selected again
+        e.target.value = '';
+    };
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'before' | 'after') => {
         if (isFreeTier) return;
@@ -326,7 +469,7 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
         setScreenshots(prev => ({ ...prev, [type]: undefined }));
     };
 
-    const finalizeSave = () => {
+    const finalizeSave = async () => {
         const entry = parseFloat(formData.entryPrice);
         const sl = parseFloat(formData.stopLoss);
         const tp = parseFloat(formData.takeProfit);
@@ -343,43 +486,49 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
             return;
         }
 
-        const simulatedPnL = calculatePnL({ 
-            ...formData, 
-            entryPrice: entry, 
-            stopLoss: sl, 
-            takeProfit: tp, 
-            lots,
-            exitPrice: formData.exitPrice ? parseFloat(formData.exitPrice) : undefined
-        } as any);
+        setIsSaving(true);
+        try {
+            const simulatedPnL = calculatePnL({ 
+                ...formData, 
+                entryPrice: entry, 
+                stopLoss: sl, 
+                takeProfit: tp, 
+                lots,
+                exitPrice: formData.exitPrice ? parseFloat(formData.exitPrice) : undefined
+            } as any);
 
-        const newTrade: Trade = {
-            id: initialTrade?.id || Date.now().toString(),
-            pair: formData.pair.toUpperCase(),
-            assetType: formData.assetType,
-            date: formData.date,
-            time: formData.time,
-            session: formData.session,
-            direction: formData.direction,
-            entryPrice: entry,
-            stopLoss: sl,
-            takeProfit: tp,
-            lots: lots,
-            result: formData.result,
-            pnl: simulatedPnL,
-            rr: metrics.rr,
-            rating: formData.rating,
-            tags: formData.tags.split(',').map(t => t.trim()).filter(t => t),
-            notes: formData.notes,
-            exitComment: formData.exitComment,
-            planAdherence: formData.planAdherence as any,
-            tradingMistake: formData.tradingMistake,
-            mindset: formData.mindset,
-            emotions: formData.emotions,
-            beforeScreenshot: screenshots.before,
-            afterScreenshot: screenshots.after,
-        };
+            const newTrade: Trade = {
+                id: initialTrade?.id || Date.now().toString(),
+                pair: formData.pair.toUpperCase(),
+                assetType: formData.assetType,
+                date: formData.date,
+                time: formData.time,
+                session: formData.session,
+                direction: formData.direction,
+                entryPrice: entry,
+                stopLoss: sl,
+                takeProfit: tp,
+                lots: lots,
+                result: formData.result,
+                pnl: simulatedPnL,
+                rr: metrics.rr,
+                rating: formData.rating,
+                tags: formData.tags.split(',').map(t => t.trim()).filter(t => t),
+                notes: formData.notes,
+                exitComment: formData.exitComment,
+                planAdherence: formData.planAdherence as any,
+                tradingMistake: formData.tradingMistake,
+                mindset: formData.mindset,
+                emotions: formData.emotions,
+                beforeScreenshot: screenshots.before,
+                afterScreenshot: screenshots.after,
+            };
 
-        onSave(newTrade);
+            await onSave(newTrade);
+        } catch (error) {
+            console.error("Save failed:", error);
+            setIsSaving(false);
+        }
     };
 
     const isLong = formData.direction === 'Long';
@@ -451,21 +600,35 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
                         </button>
                     )}
                     <button 
-                        disabled={isFreeTier}
+                        disabled={isRestricted}
+                        onClick={() => importTradesInputRef.current?.click()}
                         className={`hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold border transition-all ${
-                            isFreeTier
+                            isRestricted
                             ? 'opacity-50 cursor-not-allowed border-zinc-200 text-zinc-400'
                             : isDarkMode ? 'border-[#27272a] text-zinc-400 hover:bg-[#27272a] hover:text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                         }`}
                     >
-                        {isFreeTier ? <Lock size={14} /> : <Upload size={14} />} 
+                        {isRestricted ? <Lock size={14} /> : <Upload size={14} />} 
                         Import MT4/MT5
                     </button>
+                    <input
+                        type="file"
+                        ref={importTradesInputRef}
+                        className="hidden"
+                        accept=".csv,.txt"
+                        onChange={handleImportMT4MT5}
+                    />
                     <button
                         onClick={finalizeSave}
-                        className="flex items-center gap-2 px-5 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-sm font-semibold shadow-lg shadow-violet-500/20 transition-all active:scale-95"
+                        disabled={isSaving}
+                        className="flex items-center gap-2 px-5 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-sm font-semibold shadow-lg shadow-violet-500/20 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
                     >
-                        <Save size={16} /> {initialTrade ? 'Update Entry' : 'Save Entry'}
+                        {isSaving ? (
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                            <Save size={16} />
+                        )}
+                        {isSaving ? 'Saving...' : (initialTrade ? 'Update Entry' : 'Save Entry')}
                     </button>
                 </div>
             </div>
@@ -722,11 +885,11 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
                                         <div className="relative group">
                                             <div className="flex items-center justify-between mb-2">
                                                 <Label className="!mb-0">Mindset/Psychology</Label>
-                                                {isFreeTier && <LockedBadge />}
+                                                {isRestricted && <LockedBadge />}
                                             </div>
                                             <Select
                                                 isDarkMode={isDarkMode}
-                                                disabled={isFreeTier}
+                                                disabled={isRestricted}
                                                 icon={Brain}
                                                 value={formData.mindset}
                                                 onChange={(val) => handleInputChange('mindset', val)}
@@ -742,11 +905,11 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
                                         <div className="relative group">
                                             <div className="flex items-center justify-between mb-2">
                                                 <Label className="!mb-0">Plan Adherence</Label>
-                                                {isFreeTier && <LockedBadge />}
+                                                {isRestricted && <LockedBadge />}
                                             </div>
                                             <Select
                                                 isDarkMode={isDarkMode}
-                                                disabled={isFreeTier}
+                                                disabled={isRestricted}
                                                 icon={ShieldCheck}
                                                 value={formData.planAdherence}
                                                 onChange={(val) => handleInputChange('planAdherence', val)}
@@ -764,11 +927,11 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
                                         <div className="col-span-2 relative group">
                                             <div className="flex items-center justify-between mb-2">
                                                 <Label className="!mb-0">Trading Mistake</Label>
-                                                {isFreeTier && <LockedBadge />}
+                                                {isRestricted && <LockedBadge />}
                                             </div>
                                             <Select
                                                 isDarkMode={isDarkMode}
-                                                disabled={isFreeTier}
+                                                disabled={isRestricted}
                                                 icon={AlertTriangle}
                                                 value={formData.tradingMistake}
                                                 onChange={(val) => handleInputChange('tradingMistake', val)}
@@ -804,20 +967,20 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
                                         <div className="relative group">
                                             <div className="flex items-center justify-between mb-2">
                                                 <Label className="!mb-0">Entry/Before Screenshot</Label>
-                                                {isFreeTier && <LockedBadge />}
+                                                {isRestricted && <LockedBadge />}
                                             </div>
                                             <input
                                                 type="file"
                                                 ref={beforeInputRef}
                                                 className="hidden"
                                                 accept="image/*"
-                                                disabled={isFreeTier}
+                                                disabled={isRestricted}
                                                 onChange={(e) => handleFileUpload(e, 'before')}
                                             />
                                             <div
-                                                onClick={() => !isFreeTier && beforeInputRef.current?.click()}
+                                                onClick={() => !isRestricted && beforeInputRef.current?.click()}
                                                 className={`w-full h-32 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 transition-all overflow-hidden relative ${
-                                                    isFreeTier ? 'opacity-50 cursor-not-allowed border-zinc-200 bg-zinc-50 dark:bg-zinc-900/30' :
+                                                    isRestricted ? 'opacity-50 cursor-not-allowed border-zinc-200 bg-zinc-50 dark:bg-zinc-900/30' :
                                                     isDarkMode ? 'border-[#27272a] bg-[#18181b]/50 hover:border-violet-500 hover:bg-[#18181b] cursor-pointer' : 'border-slate-300 bg-slate-50 hover:border-violet-500 hover:bg-slate-100 cursor-pointer'
                                                 }`}>
                                                 {screenshots.before ? (
@@ -842,11 +1005,11 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
                                                     </>
                                                 ) : (
                                                     <div className="w-full h-full flex flex-col items-center justify-center gap-3">
-                                                        <div className={`p-3 rounded-full ${isFreeTier ? 'bg-zinc-200 text-zinc-400' : isDarkMode ? 'bg-violet-500/10 text-violet-400' : 'bg-violet-50 text-violet-600'}`}>
-                                                            {isFreeTier ? <Lock size={20} /> : <ImageIcon size={20} />}
+                                                        <div className={`p-3 rounded-full ${isRestricted ? 'bg-zinc-200 text-zinc-400' : isDarkMode ? 'bg-violet-500/10 text-violet-400' : 'bg-violet-50 text-violet-600'}`}>
+                                                            {isRestricted ? <Lock size={20} /> : <ImageIcon size={20} />}
                                                         </div>
                                                         <div className="text-center">
-                                                            <p className="text-xs font-semibold">{isFreeTier ? 'Feature Locked' : 'Click to upload before'}</p>
+                                                            <p className="text-xs font-semibold">{isRestricted ? 'Feature Locked' : 'Click to upload before'}</p>
                                                         </div>
                                                     </div>
                                                 )}
@@ -855,20 +1018,20 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
                                         <div className="relative group">
                                             <div className="flex items-center justify-between mb-2">
                                                 <Label className="!mb-0">Exit/After Screenshot</Label>
-                                                {isFreeTier && <LockedBadge />}
+                                                {isRestricted && <LockedBadge />}
                                             </div>
                                             <input
                                                 type="file"
                                                 ref={afterInputRef}
                                                 className="hidden"
                                                 accept="image/*"
-                                                disabled={isFreeTier}
+                                                disabled={isRestricted}
                                                 onChange={(e) => handleFileUpload(e, 'after')}
                                             />
                                             <div
-                                                onClick={() => !isFreeTier && afterInputRef.current?.click()}
+                                                onClick={() => !isRestricted && afterInputRef.current?.click()}
                                                 className={`w-full h-32 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-3 transition-all overflow-hidden relative ${
-                                                    isFreeTier ? 'opacity-50 cursor-not-allowed border-zinc-200 bg-zinc-50 dark:bg-zinc-900/30' :
+                                                    isRestricted ? 'opacity-50 cursor-not-allowed border-zinc-200 bg-zinc-50 dark:bg-zinc-900/30' :
                                                     isDarkMode ? 'border-[#27272a] bg-[#18181b]/50 hover:border-violet-500 hover:bg-[#18181b] cursor-pointer' : 'border-slate-300 bg-slate-50 hover:border-violet-500 hover:bg-slate-100 cursor-pointer'
                                                 }`}>
                                                 {screenshots.after ? (
@@ -893,11 +1056,11 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
                                                     </>
                                                 ) : (
                                                     <div className="w-full h-full flex flex-col items-center justify-center gap-3">
-                                                        <div className={`p-3 rounded-full ${isFreeTier ? 'bg-zinc-200 text-zinc-400' : isDarkMode ? 'bg-violet-500/10 text-violet-400' : 'bg-violet-50 text-violet-600'}`}>
-                                                            {isFreeTier ? <Lock size={20} /> : <ImageIcon size={20} />}
+                                                        <div className={`p-3 rounded-full ${isRestricted ? 'bg-zinc-200 text-zinc-400' : isDarkMode ? 'bg-violet-500/10 text-violet-400' : 'bg-violet-50 text-violet-600'}`}>
+                                                            {isRestricted ? <Lock size={20} /> : <ImageIcon size={20} />}
                                                         </div>
                                                         <div className="text-center">
-                                                            <p className="text-xs font-semibold">{isFreeTier ? 'Feature Locked' : 'Click to upload after'}</p>
+                                                            <p className="text-xs font-semibold">{isRestricted ? 'Feature Locked' : 'Click to upload after'}</p>
                                                         </div>
                                                     </div>
                                                 )}
@@ -907,7 +1070,7 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
                                         <div className="col-span-2">
-                                            <Label>Tags</Label>
+                                            <Label>Strategy</Label>
                                             <InputWrapper>
                                                 <StyledInput
                                                     isDarkMode={isDarkMode}
@@ -917,7 +1080,7 @@ const LogTrade: React.FC<LogTradeProps> = ({ isDarkMode, onSave, initialTrade, o
                                                     onChange={(e: any) => handleInputChange('tags', e.target.value)}
                                                 />
                                             </InputWrapper>
-                                            <p className="text-[10px] opacity-50 mt-2 pl-1">Separate tags with commas</p>
+                                            <p className="text-[10px] opacity-50 mt-2 pl-1">Separate strategies with commas</p>
                                         </div>
                                     </div>
                                 </div>

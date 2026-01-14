@@ -286,8 +286,6 @@ const CalendarView = ({ isDarkMode, trades, userProfile }: { isDarkMode: boolean
 
 const Journal: React.FC<JournalProps> = ({ isDarkMode, trades, onUpdateTrade, onDeleteTrades, onEditTrade, userProfile }) => {
     const [searchTerm, setSearchTerm] = useState('');
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
     const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
     const [expandedTradeId, setExpandedTradeId] = useState<string | null>(null);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -299,20 +297,12 @@ const Journal: React.FC<JournalProps> = ({ isDarkMode, trades, onUpdateTrade, on
             t.assetType.toLowerCase().includes(searchTerm.toLowerCase())
         );
 
-        if (startDate) {
-            result = result.filter(t => t.date >= startDate);
-        }
-
-        if (endDate) {
-            result = result.filter(t => t.date <= endDate);
-        }
-
         return result.sort((a, b) => {
             const dateA = new Date(`${a.date}T${a.time || '00:00:00'}`);
             const dateB = new Date(`${b.date}T${b.time || '00:00:00'}`);
             return dateB.getTime() - dateA.getTime();
         });
-    }, [trades, searchTerm, startDate, endDate]);
+    }, [trades, searchTerm]);
 
     const toggleExpand = (id: string) => { setExpandedTradeId(expandedTradeId === id ? null : id); };
     const handleSelectAll = () => { if (selectedIds.length === filteredTrades.length) setSelectedIds([]); else setSelectedIds(filteredTrades.map(t => t.id)); };
@@ -395,11 +385,25 @@ const Journal: React.FC<JournalProps> = ({ isDarkMode, trades, onUpdateTrade, on
                     <div className="col-span-12 md:col-span-8 lg:col-span-5 space-y-4">
                         <div className={`p-5 rounded-xl border min-h-[140px] ${isDarkMode ? 'bg-zinc-900/20 border-zinc-800 text-zinc-300' : 'bg-white border-slate-200 text-slate-700'}`}>
                             <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2">Entry Note</h4>
-                            <p className="text-sm leading-relaxed whitespace-pre-wrap">{trade.notes || "No entry comments recorded."}</p>
+                            {trade.notes ? (
+                                <div 
+                                    className="text-sm leading-relaxed prose prose-sm dark:prose-invert max-w-none"
+                                    dangerouslySetInnerHTML={{ __html: trade.notes }}
+                                />
+                            ) : (
+                                <p className="text-sm opacity-50 italic">No entry comments recorded.</p>
+                            )}
                         </div>
                         <div className={`p-5 rounded-xl border min-h-[140px] ${isDarkMode ? 'bg-zinc-900/20 border-zinc-800 text-zinc-300' : 'bg-white border-slate-200 text-slate-700'}`}>
                             <h4 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-2">Exit Note</h4>
-                            <p className="text-sm leading-relaxed whitespace-pre-wrap">{trade.exitComment || "No exit comments recorded."}</p>
+                            {trade.exitComment ? (
+                                <div 
+                                    className="text-sm leading-relaxed prose prose-sm dark:prose-invert max-w-none"
+                                    dangerouslySetInnerHTML={{ __html: trade.exitComment }}
+                                />
+                            ) : (
+                                <p className="text-sm opacity-50 italic">No exit comments recorded.</p>
+                            )}
                         </div>
                     </div>
                     <div className="col-span-12 lg:col-span-4 grid grid-cols-2 gap-3 content-start">
@@ -494,21 +498,6 @@ const Journal: React.FC<JournalProps> = ({ isDarkMode, trades, onUpdateTrade, on
                                 value={searchTerm} 
                                 onChange={(e) => setSearchTerm(e.target.value)} 
                                 className={`pl-10 pr-4 py-2 rounded-lg border text-sm outline-none w-64 ${isDarkMode ? 'bg-[#18181b] border-[#27272a] focus:border-blue-500' : 'bg-white border-slate-200'}`} 
-                            />
-                        </div>
-                        <div className="flex items-center gap-2">
-                             <input 
-                                type="date" 
-                                value={startDate} 
-                                onChange={(e) => setStartDate(e.target.value)} 
-                                className={`px-3 py-2 rounded-lg border text-sm outline-none ${isDarkMode ? 'bg-[#18181b] border-[#27272a] text-zinc-200 focus:border-blue-500' : 'bg-white border-slate-200 text-slate-700'}`}
-                            />
-                            <span className={`text-sm ${isDarkMode ? 'text-zinc-500' : 'text-slate-400'}`}>to</span>
-                            <input 
-                                type="date" 
-                                value={endDate} 
-                                onChange={(e) => setEndDate(e.target.value)} 
-                                className={`px-3 py-2 rounded-lg border text-sm outline-none ${isDarkMode ? 'bg-[#18181b] border-[#27272a] text-zinc-200 focus:border-blue-500' : 'bg-white border-slate-200 text-slate-700'}`}
                             />
                         </div>
                     </div>

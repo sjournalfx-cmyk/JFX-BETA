@@ -6,6 +6,7 @@ import Dashboard from './components/Dashboard';
 import Journal from './components/Journal';
 import Analytics from './components/Analytics';
 import Auth from './components/Auth';
+import { PartyPopper, MessageSquare, AlertCircle, Trash2, LogOut, X, Wallet, Activity, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
 import Goals from './components/Goals';
 import Notes from './components/Notes';
@@ -16,21 +17,53 @@ import Calculators from './components/Calculators';
 import Onboarding from './components/Onboarding';
 import Settings from './components/Settings';
 import EASetup from './components/EASetup';
+import BrokerConnect from './components/BrokerConnect';
 import ConfirmationModal from './components/ConfirmationModal';
+import QuickLogModal from './components/QuickLogModal';
 import ErrorBoundary from './components/ErrorBoundary';
-import { Trade, Note, DailyBias, UserProfile, Goal } from './types';
+import { APP_CONSTANTS, PLAN_FEATURES } from './lib/constants';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { authService } from './services/authService';
 import { dataService, mapTradeFromDB } from './services/dataService';
 import { supabase } from './lib/supabase';
+import { ToastProvider, useToast } from './components/ui/Toast';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const [currentView, setCurrentView] = useState('dashboard');
+  const [settingsTab, setSettingsTab] = useState<'profile' | 'account' | 'appearance' | 'billing' | 'security' | 'help'>('profile');
+  const { addToast } = useToast();
 
   // Persistent State (Theme only)
   const [isDarkMode, setIsDarkMode] = useLocalStorage<boolean>('jfx_theme_dark', true);
 
+  const playNotificationSound = () => {
+    try {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioContext) return;
+        
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime); // A5
+        osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.1); // A6
+        
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+
+        osc.start();
+        osc.stop(ctx.currentTime + 0.3);
+    } catch (e) {
+        console.error("Audio play failed", e);
+    }
+  };
+
   // App State
+  const [userId, setUserId] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [userEmail, setUserEmail] = useState<string>('');
   const [trades, setTrades] = useState<Trade[]>([]);
@@ -38,15 +71,29 @@ const App: React.FC = () => {
   const [dailyBias, setDailyBias] = useState<DailyBias[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [eaSession, setEASession] = useState<any>(null);
+  const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
 
   // Auth & Loading State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isDataLoading, setIsDataLoading] = useState(false);
 
   // UI State
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
-  const [editingTrade, setEditingTrade] = useState<Trade | null>(null);
+  const [isQuickLogOpen, setIsQuickLogOpen] = useState(false);
+  const [hasSeenBetaAnnouncement, setHasSeenBetaAnnouncement] = useLocalStorage<boolean>('jfx_beta_announcement_shown', false);
+  const [showBetaAnnouncement, setShowBetaAnnouncement] = useState(false);
+
+  // Show announcement when onboarded but hasn't seen it yet
+  useEffect(() => {
+    if (userProfile?.onboarded && !hasSeenBetaAnnouncement) {
+      const timer = setTimeout(() => {
+        setShowBetaAnnouncement(true);
+      }, 1500); // Small delay for better UX
+      return () => clearTimeout(timer);
+    }
+  }, [userProfile?.onboarded, hasSeenBetaAnnouncement]);
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -69,100 +116,136 @@ const App: React.FC = () => {
       try {
         const user = await authService.getCurrentUser();
         if (user) {
+          setUserId(user.id);
           setIsAuthenticated(true);
+          setUserEmail(user.email || '');
           await loadUserData(user.id);
         }
       } catch (error) {
         console.error("Failed to initialize app:", error);
       } finally {
-        setIsLoading(false);
+        setIsInitialLoading(false);
       }
     };
 
     initApp();
   }, []);
 
-  // Trades Realtime Subscription
+  // --- Realtime Profile & EA Session Sync ---
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (isAuthenticated && userId && userProfile?.syncKey) {
+      // 1. Subscribe to Session Data
+      const sessionChannel = supabase
+        .channel('ea_session_global_sync')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'ea_sessions',
+          filter: `sync_key=eq.${userProfile.syncKey}`
+        }, (payload) => {
+          if (payload.new) {
+            setEASession(payload.new);
+          }
+        })
+        .subscribe();
 
-    const channel = supabase
-      .channel('app_trades_global')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'trades'
-      }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          const newTrade = mapTradeFromDB(payload.new);
-          setTrades(prev => {
-            // Prevent duplicates if already added locally
-            if (prev.some(t => t.id === newTrade.id)) return prev;
-            // Sort by date/time descending to maintain order
-            const updated = [newTrade, ...prev];
-            return updated.sort((a, b) => {
-                const dateA = new Date(`${a.date}T${a.time || '00:00:00'}`);
-                const dateB = new Date(`${b.date}T${b.time || '00:00:00'}`);
-                return dateB.getTime() - dateA.getTime();
-            });
+      // 2. Subscribe to Profile changes (e.g. eaConnected status from DB trigger)
+      const profileChannel = supabase
+        .channel('profile_sync')
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${userId}`
+        }, (payload) => {
+          if (payload.new) {
+            const p = payload.new;
+            setUserProfile(prev => prev ? ({
+              ...prev,
+              name: p.name,
+              accountName: p.account_name,
+              syncMethod: p.sync_method,
+              plan: p.plan,
+              eaConnected: p.ea_connected,
+              avatarUrl: p.avatar_url,
+              themePreference: p.theme_preference
+            }) : null);
+          }
+        })
+        .subscribe();
+
+      // 3. Subscribe to Trades (Realtime sync for journal)
+      const tradesChannel = supabase
+        .channel('trades_sync')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'trades',
+          filter: `user_id=eq.${userId}`
+        }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setTrades(prev => [mapTradeFromDB(payload.new), ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setTrades(prev => prev.map(t => t.id === payload.new.id ? mapTradeFromDB(payload.new) : t));
+          } else if (payload.eventType === 'DELETE') {
+            setTrades(prev => prev.filter(t => t.id !== payload.old.id));
+          }
+        })
+        .subscribe();
+
+      // 4. Subscribe to Notes
+      const notesChannel = supabase
+        .channel('notes_sync')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'notes', filter: `user_id=eq.${userId}` }, (payload) => {
+          if (payload.eventType === 'INSERT') setNotes(prev => [{ ...payload.new, isPinned: (payload.new as any).is_pinned }, ...prev]);
+          else if (payload.eventType === 'UPDATE') setNotes(prev => prev.map(n => n.id === payload.new.id ? { ...payload.new, isPinned: (payload.new as any).is_pinned } as Note : n));
+          else if (payload.eventType === 'DELETE') setNotes(prev => prev.filter(n => n.id !== payload.old.id));
+        }).subscribe();
+
+      // 5. Subscribe to Daily Bias
+      const biasChannel = supabase
+        .channel('bias_sync')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_bias', filter: `user_id=eq.${userId}` }, (payload) => {
+          if (payload.eventType === 'INSERT') setDailyBias(prev => [...prev, { ...payload.new, actualOutcome: (payload.new as any).actual_outcome } as DailyBias]);
+          else if (payload.eventType === 'UPDATE') setDailyBias(prev => prev.map(b => b.date === payload.new.date ? { ...payload.new, actualOutcome: (payload.new as any).actual_outcome } as DailyBias : b));
+        }).subscribe();
+
+      // 6. Subscribe to Goals
+      const goalsChannel = supabase
+        .channel('goals_sync')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'goals', filter: `user_id=eq.${userId}` }, (payload) => {
+          // Re-using dataService mapping would be better but let's do a quick map here or refactor
+          const mapGoal = (g: any): Goal => ({
+            id: g.id, title: g.title, description: g.description, type: g.type, metric: g.metric,
+            targetValue: g.target_value, startValue: g.start_value, startDate: g.start_date, endDate: g.end_date,
+            status: g.status, createdAt: g.created_at, milestones: g.milestones || [], manualProgress: g.current_value
           });
-        } else if (payload.eventType === 'UPDATE') {
-          const updatedTrade = mapTradeFromDB(payload.new);
-          setTrades(prev => prev.map(t => t.id === updatedTrade.id ? updatedTrade : t));
-        } else if (payload.eventType === 'DELETE') {
-          setTrades(prev => prev.filter(t => t.id !== payload.old.id));
-        }
-      })
-      .subscribe();
+          if (payload.eventType === 'INSERT') setGoals(prev => [mapGoal(payload.new), ...prev]);
+          else if (payload.eventType === 'UPDATE') setGoals(prev => prev.map(g => g.id === payload.new.id ? mapGoal(payload.new) : g));
+          else if (payload.eventType === 'DELETE') setGoals(prev => prev.filter(g => g.id !== payload.old.id));
+        }).subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [isAuthenticated]);
-
-  // EA Session Subscription
-  useEffect(() => {
-    if (userProfile?.syncKey && isAuthenticated) {
-        const fetchSession = async () => {
-            try {
-                const session = await dataService.getEASession(userProfile.syncKey!);
-                if (session) setEASession(session);
-            } catch (err) {
-                console.error("Error fetching EA session:", err);
-            }
-        };
-        fetchSession();
-
-        // Use a more robust subscription without the string filter to avoid case-sensitivity issues
-        const channel = supabase
-            .channel('app_ea_sync_global')
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'ea_sessions'
-            }, (payload) => {
-                // Manually filter for the user's syncKey
-                if (payload.new && (payload.new as any).sync_key === userProfile.syncKey) {
-                    setEASession(payload.new);
-                }
-            })
-            .subscribe((status) => {
-                if (status === 'SUBSCRIBED') {
-                    console.log('Realtime connected for EA Sync');
-                }
-            });
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
+      return () => {
+        supabase.removeChannel(sessionChannel);
+        supabase.removeChannel(profileChannel);
+        supabase.removeChannel(tradesChannel);
+        supabase.removeChannel(notesChannel);
+        supabase.removeChannel(biasChannel);
+        supabase.removeChannel(goalsChannel);
+      };
+    } else {
+      setEASession(null);
     }
-}, [userProfile?.syncKey, isAuthenticated]);
+  }, [isAuthenticated, userId, userProfile?.syncKey]);
 
+  // ... (Realtime subscriptions omitted for brevity)
   const loadUserData = async (userId: string) => {
+    setIsDataLoading(true);
     try {
       const { data: profile } = await authService.getProfile(userId);
+      let mappedProfile: UserProfile | null = null;
       if (profile) {
-        const mappedProfile: UserProfile = {
+        mappedProfile = {
           name: profile.name || '',
           country: profile.country || '',
           accountName: profile.account_name || 'Primary Account',
@@ -178,6 +261,9 @@ const App: React.FC = () => {
           eaConnected: profile.ea_connected || false,
           autoJournal: profile.auto_journal || false,
           avatarUrl: profile.avatar_url,
+          themePreference: profile.theme_preference || 'default',
+          chartConfig: profile.chart_config || null,
+          keepChartsAlive: profile.keep_charts_alive ?? true,
         };
         setUserProfile(mappedProfile);
       }
@@ -193,8 +279,38 @@ const App: React.FC = () => {
       setNotes(fetchedNotes);
       setDailyBias(fetchedBias);
       setGoals(fetchedGoals);
+
+      // --- Fetch EA Session if connected ---
+      if (mappedProfile && mappedProfile.eaConnected && mappedProfile.syncKey) {
+        const session = await dataService.getEASession(mappedProfile.syncKey);
+        if (session) {
+          setEASession(session);
+        }
+      }
+
+      // --- 3. Journal Inactivity Reminder ---
+      if (fetchedTrades.length > 0) {
+          const lastTradeDate = new Date(fetchedTrades[0].date); // First is newest
+          const now = new Date();
+          const diffTime = Math.abs(now.getTime() - lastTradeDate.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+
+          if (diffDays > 3) {
+              setTimeout(() => { // Slight delay to not overwhelm on load
+                  addToast({
+                      type: 'info',
+                      title: 'Time to Journal?',
+                      message: `It's been ${diffDays} days since your last logged trade. Consistency is key!`,
+                      duration: 6000
+                  });
+              }, 2000);
+          }
+      }
+
     } catch (error) {
       console.error("Error loading user data:", error);
+    } finally {
+      setIsDataLoading(false);
     }
   };
 
@@ -216,30 +332,14 @@ const App: React.FC = () => {
           return tradeDate.getMonth() === currentMonth && tradeDate.getFullYear() === currentYear;
         }).length;
 
-        const isFreePlan = userProfile?.plan === 'FREE TIER (JOURNALER)';
-        const isProPlan = userProfile?.plan === 'PRO TIER (ANALYSTS)';
+        const currentPlan = userProfile?.plan || APP_CONSTANTS.PLANS.FREE;
+        const features = PLAN_FEATURES[currentPlan] || PLAN_FEATURES[APP_CONSTANTS.PLANS.FREE];
         
-        if (isFreePlan && tradesThisMonth >= 50) {
+        if (features.maxTradesPerMonth !== Infinity && tradesThisMonth >= features.maxTradesPerMonth) {
           setConfirmModal({
             isOpen: true,
             title: 'Monthly Limit Reached',
-            description: 'You have reached the limit of 50 trades per month for the FREE TIER. Upgrade to PRO or PREMIUM for more capacity.',
-            confirmText: 'Upgrade Plan',
-            cancelText: 'Maybe Later',
-            variant: 'warning',
-            onConfirm: () => {
-              setCurrentView('settings');
-              setConfirmModal(prev => ({ ...prev, isOpen: false }));
-            },
-          });
-          return;
-        }
-
-        if (isProPlan && tradesThisMonth >= 500) {
-          setConfirmModal({
-            isOpen: true,
-            title: 'Monthly Limit Reached',
-            description: 'You have reached the limit of 500 trades per month for the PRO TIER. Upgrade to PREMIUM for unlimited capacity.',
+            description: `You have reached the limit of ${features.maxTradesPerMonth} trades per month for the ${currentPlan}. Upgrade your plan for more capacity.`,
             confirmText: 'Upgrade Plan',
             cancelText: 'Maybe Later',
             variant: 'warning',
@@ -274,6 +374,34 @@ const App: React.FC = () => {
     setCurrentView('log-trade');
   };
 
+  const handleBatchAddTrades = async (newTrades: Trade[]) => {
+    try {
+      const addedTrades = await dataService.batchAddTrades(newTrades);
+      setTrades(prev => [...addedTrades, ...prev].sort((a, b) => {
+          const dateA = new Date(`${a.date}T${a.time || '00:00:00'}`);
+          const dateB = new Date(`${b.date}T${b.time || '00:00:00'}`);
+          return dateB.getTime() - dateA.getTime();
+      }));
+      
+      addToast({
+        type: 'success',
+        title: 'Import Successful',
+        message: `Successfully imported ${addedTrades.length} trades from file.`,
+        duration: 5000
+      });
+      
+      setCurrentView('history');
+    } catch (error) {
+      console.error("Error batch adding trades:", error);
+      addToast({
+        type: 'error',
+        title: 'Import Error',
+        message: 'Failed to import trades. Please check the file format.',
+        duration: 5000
+      });
+    }
+  };
+
   const handleUpdateTrade = async (updatedTrade: Trade) => {
     try {
       await dataService.updateTrade(updatedTrade);
@@ -284,6 +412,8 @@ const App: React.FC = () => {
   };
 
   const handleDeleteTrades = async (tradeIds: string[]) => {
+    const tradesToDelete = trades.filter(t => tradeIds.includes(t.id));
+    
     setConfirmModal({
       isOpen: true,
       title: 'Delete Trades',
@@ -293,10 +423,47 @@ const App: React.FC = () => {
       onConfirm: async () => {
         try {
           await dataService.deleteTrades(tradeIds);
-          setTrades(trades.filter(t => !tradeIds.includes(t.id)));
+          setTrades(prev => prev.filter(t => !tradeIds.includes(t.id)));
           setConfirmModal(prev => ({ ...prev, isOpen: false }));
+          
+          addToast({
+            type: 'success',
+            title: 'Trades Deleted',
+            message: `${tradeIds.length} trade(s) removed from your journal.`,
+            duration: 8000,
+            action: {
+              label: 'Undo',
+              onClick: async () => {
+                try {
+                  await dataService.batchAddTrades(tradesToDelete);
+                  setTrades(prev => [...tradesToDelete, ...prev].sort((a, b) => {
+                    const dateA = new Date(`${a.date}T${a.time || '00:00:00'}`);
+                    const dateB = new Date(`${b.date}T${b.time || '00:00:00'}`);
+                    return dateB.getTime() - dateA.getTime();
+                  }));
+                  addToast({
+                    type: 'success',
+                    title: 'Deletion Undone',
+                    message: 'Your trades have been restored.'
+                  });
+                } catch (err) {
+                  console.error("Failed to undo delete:", err);
+                  addToast({
+                    type: 'error',
+                    title: 'Undo Failed',
+                    message: 'Could not restore trades. Please refresh.'
+                  });
+                }
+              }
+            }
+          });
         } catch (error) {
           console.error("Error deleting trades:", error);
+          addToast({
+            type: 'error',
+            title: 'Delete Failed',
+            message: 'An error occurred while deleting trades.'
+          });
         }
       }
     });
@@ -431,16 +598,49 @@ const App: React.FC = () => {
 
   // Ensure body follows theme
   useEffect(() => {
+    // Remove premium theme classes from both elements
+    const themeClasses = ['theme-midnight'];
+    document.documentElement.classList.remove(...themeClasses, 'theme-cosmic');
+    document.body.classList.remove(...themeClasses, 'theme-cosmic');
+    
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
-      document.body.style.backgroundColor = '#050505';
+      
+      const activeTheme = userProfile?.themePreference || 'default';
+      
+      // Apply premium themes if selected
+      if (activeTheme === 'midnight') {
+        const themeClass = 'theme-midnight';
+        document.documentElement.classList.add(themeClass);
+        document.body.classList.add(themeClass);
+        document.body.style.backgroundColor = '#020617';
+      } else {
+        document.body.style.backgroundColor = '#050505'; // Default dark
+      }
     } else {
       document.documentElement.classList.remove('dark');
-      document.body.style.backgroundColor = '#F8FAFC';
+      document.body.style.backgroundColor = '#F8FAFC'; // Default light
     }
-  }, [isDarkMode]);
+  }, [isDarkMode, userProfile?.themePreference]);
 
-  if (isLoading) {
+  // Ensure focus mode is disabled when leaving charts view
+  useEffect(() => {
+    if (currentView !== 'charts') {
+      setIsFocusMode(false);
+    }
+    
+    // Auto-refresh data when switching to critical views
+    if (isAuthenticated && userId) {
+      if (currentView === 'history') {
+        dataService.getTrades().then(setTrades).catch(console.error);
+      } else if (currentView === 'dashboard') {
+        dataService.getTrades().then(setTrades).catch(console.error);
+        dataService.getDailyBias().then(setDailyBias).catch(console.error);
+      }
+    }
+  }, [currentView, isAuthenticated, userId]);
+
+  if (isInitialLoading) {
     return (
       <div className={`flex h-screen w-full items-center justify-center ${isDarkMode ? 'bg-[#050505] text-white' : 'bg-slate-50'}`}>
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#FF4F01]"></div>
@@ -454,27 +654,35 @@ const App: React.FC = () => {
       <Auth
         isDarkMode={isDarkMode}
         onLogin={async () => {
-          setIsLoading(true);
+          setIsInitialLoading(true);
           setIsAuthenticated(true);
           try {
             const user = await authService.getCurrentUser();
-            if (user) await loadUserData(user.id);
+            if (user) {
+              setUserId(user.id);
+              setUserEmail(user.email || '');
+              await loadUserData(user.id);
+            }
           } catch (error) {
             console.error("Login data load failed:", error);
           } finally {
-            setIsLoading(false);
+            setIsInitialLoading(false);
           }
         }}
         onRegister={async () => {
-          setIsLoading(true);
+          setIsInitialLoading(true);
           setIsAuthenticated(true);
           try {
             const user = await authService.getCurrentUser();
-            if (user) await loadUserData(user.id);
+            if (user) {
+              setUserId(user.id);
+              setUserEmail(user.email || '');
+              await loadUserData(user.id);
+            }
           } catch (error) {
             console.error("Registration data load failed:", error);
           } finally {
-            setIsLoading(false);
+            setIsInitialLoading(false);
           }
         }}
       />
@@ -527,14 +735,17 @@ const App: React.FC = () => {
             <Sidebar
               currentView={currentView}
               onViewChange={setCurrentView}
+              onSettingsTabChange={setSettingsTab}
               isDarkMode={isDarkMode}
               onToggleTheme={() => setIsDarkMode(!isDarkMode)}
               onOpenCalculator={() => setIsCalculatorOpen(true)}
+              onOpenQuickLog={() => setIsQuickLogOpen(true)}
               onLogout={handleLogout}
               userProfile={userProfile}
+              trades={trades}
             />
           )}
-  
+
           <main className="flex-1 h-full overflow-hidden relative">
             {currentView === 'dashboard' && (
               <Dashboard
@@ -545,12 +756,14 @@ const App: React.FC = () => {
                 userProfile={userProfile}
                 onViewChange={setCurrentView}
                 eaSession={eaSession}
+                isLoading={isDataLoading}
               />
             )}
             {currentView === 'log-trade' && userProfile && (
               <LogTrade
                 isDarkMode={isDarkMode}
                 onSave={handleAddTrade}
+                onBatchSave={handleBatchAddTrades}
                 initialTrade={editingTrade || undefined}
                 onCancel={() => { setEditingTrade(null); setCurrentView('history'); }}
                 currencySymbol={userProfile.currencySymbol}
@@ -567,7 +780,15 @@ const App: React.FC = () => {
                 userProfile={userProfile}
               />
             )}
-            {currentView === 'analytics' && userProfile && <Analytics isDarkMode={isDarkMode} trades={trades} userProfile={userProfile} eaSession={eaSession} />} 
+            {currentView === 'analytics' && userProfile && (
+              <Analytics 
+                isDarkMode={isDarkMode} 
+                trades={trades} 
+                userProfile={userProfile} 
+                eaSession={eaSession} 
+                onViewChange={setCurrentView}
+              />
+            )} 
   
             {currentView === 'goals' && userProfile && (
               <Goals
@@ -593,18 +814,45 @@ const App: React.FC = () => {
                 onViewChange={setCurrentView}
               />
             )}
-            {currentView === 'charts' && userProfile && (
-              <ChartGrid
-                isDarkMode={isDarkMode}
-                isFocusMode={isFocusMode}
-                onToggleFocus={() => setIsFocusMode(!isFocusMode)}
-                userProfile={userProfile}
-              />
+            
+            {/* Persistent Chart View (Respects keepChartsAlive preference) */}
+            {userProfile?.keepChartsAlive ? (
+              <div className={currentView === 'charts' ? 'h-full w-full' : 'hidden'}>
+                {userProfile && (
+                  <ChartGrid
+                    isDarkMode={isDarkMode}
+                    isFocusMode={isFocusMode}
+                    onToggleFocus={() => setIsFocusMode(!isFocusMode)}
+                    userProfile={userProfile}
+                    onUpdateProfile={handleUpdateProfile}
+                  />
+                )}
+              </div>
+            ) : (
+              currentView === 'charts' && userProfile && (
+                <ChartGrid
+                  isDarkMode={isDarkMode}
+                  isFocusMode={isFocusMode}
+                  onToggleFocus={() => setIsFocusMode(!isFocusMode)}
+                  userProfile={userProfile}
+                  onUpdateProfile={handleUpdateProfile}
+                />
+              )
             )}
+
             {currentView === 'diagrams' && <DiagramEditor isDarkMode={isDarkMode} />}
             {currentView === 'ea-setup' && userProfile && (
               <EASetup 
                 isDarkMode={isDarkMode} 
+                userProfile={userProfile}
+                onUpdateProfile={handleUpdateProfile}
+                eaSession={eaSession}
+                onTradeAdded={(newTrade) => setTrades(prev => [newTrade, ...prev])}
+              />
+            )}
+            {currentView === 'broker' && userProfile && (
+              <BrokerConnect
+                isDarkMode={isDarkMode}
                 userProfile={userProfile}
                 onUpdateProfile={handleUpdateProfile}
               />
@@ -619,15 +867,27 @@ const App: React.FC = () => {
               <Settings
                 isDarkMode={isDarkMode}
                 userProfile={userProfile}
+                userEmail={userEmail}
                 onUpdateProfile={handleUpdateProfile}
                 onLogout={handleLogout}
                 onToggleTheme={() => setIsDarkMode(!isDarkMode)}
                 tradesThisMonth={tradesThisMonth}
                 totalNotes={totalNotes}
                 totalImages={totalImages}
+                tradesCount={trades.length}
+                initialTab={settingsTab}
               />
             )}
           </main>
+        
+        <QuickLogModal
+          isOpen={isQuickLogOpen}
+          onClose={() => setIsQuickLogOpen(false)}
+          onSave={handleAddTrade}
+          isDarkMode={isDarkMode}
+          currencySymbol={userProfile?.currencySymbol || '$'}
+        />
+
         {/* Confirmation Modal */}
         <ConfirmationModal
           isOpen={confirmModal.isOpen}
@@ -641,8 +901,68 @@ const App: React.FC = () => {
           onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
           isDarkMode={isDarkMode}
         />
+        {/* Beta Announcement Modal */}
+        {showBetaAnnouncement && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
+            <div 
+              className={`w-full max-w-lg rounded-[32px] p-10 shadow-2xl relative overflow-hidden ${
+                isDarkMode ? 'bg-[#0f111a] text-white border border-zinc-800' : 'bg-white text-gray-900 border border-gray-100'
+              } transform transition-all animate-in zoom-in-95 duration-300`}
+            >
+              {/* Decorative Background Elements */}
+              <div className="absolute top-[-10%] right-[-10%] w-40 h-40 bg-[#FF4F01]/10 rounded-full blur-3xl" />
+              <div className="absolute bottom-[-10%] left-[-10%] w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl" />
+
+              <div className="relative z-10 flex flex-col items-center text-center">
+                <div className="w-20 h-20 bg-gradient-to-br from-[#FF4F01] to-orange-600 rounded-[24px] flex items-center justify-center text-white mb-8 shadow-2xl rotate-3">
+                  <PartyPopper size={40} />
+                </div>
+                
+                <h2 className="text-4xl font-black mb-4 tracking-tight">Welcome to the Beta!</h2>
+                <p className={`text-base mb-8 leading-relaxed px-4 ${isDarkMode ? 'text-zinc-400' : 'text-gray-500'}`}>
+                  Thank you for joining the <span className="text-[#FF4F01] font-bold">JournalFX Beta Program</span>. 
+                  As a beta tester, you have full access to all <span className="text-indigo-400 font-bold">Pro</span> and <span className="text-purple-400 font-bold">Premium</span> features for free.
+                </p>
+
+                <div className={`w-full p-6 rounded-2xl mb-8 text-left ${isDarkMode ? 'bg-white/5 border border-white/5' : 'bg-slate-50 border border-slate-100'}`}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2 bg-[#FF4F01]/10 text-[#FF4F01] rounded-lg">
+                      <MessageSquare size={18} />
+                    </div>
+                    <h4 className="font-bold text-sm">How to provide feedback:</h4>
+                  </div>
+                  <p className="text-xs opacity-60 leading-relaxed">
+                    Found a bug or have a suggestion? Go to <span className="font-bold">Settings &gt; Help & Feedback</span> to send us a direct message. Your feedback directly shapes the future of JournalFX.
+                  </p>
+                </div>
+
+                <button 
+                  onClick={() => {
+                    setShowBetaAnnouncement(false);
+                    setHasSeenBetaAnnouncement(true);
+                  }}
+                  className="w-full py-5 bg-[#FF4F01] hover:bg-[#e64601] text-white rounded-2xl font-black text-sm shadow-xl shadow-[#FF4F01]/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  LET'S START TRADING
+                </button>
+                
+                <p className="mt-6 text-[10px] font-bold uppercase tracking-[0.2em] opacity-30">
+                  JournalFX v1.0.0-beta.1
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </ErrorBoundary>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
   );
 };
 

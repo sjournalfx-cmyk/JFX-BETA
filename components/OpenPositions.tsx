@@ -67,6 +67,7 @@ const OpenPositions: React.FC<OpenPositionsProps> = ({ positions, isDarkMode, cu
                     }
                 `}</style>
                 {positions.map((pos) => {
+                    const isBuy = pos.type?.toLowerCase() === 'buy';
                     return (
                         <div
                             key={pos.ticket}
@@ -77,16 +78,16 @@ const OpenPositions: React.FC<OpenPositionsProps> = ({ positions, isDarkMode, cu
                         >
                             <div className="flex items-center justify-between mb-3">
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${pos.type === 'Buy'
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isBuy
                                         ? 'bg-emerald-500/10 text-emerald-500'
                                         : 'bg-rose-500/10 text-rose-500'
                                         }`}>
-                                        {pos.type === 'Buy' ? <ArrowUpRight size={20} /> : <ArrowDownRight size={20} />}
+                                        {isBuy ? <ArrowUpRight size={20} /> : <ArrowDownRight size={20} />}
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-2">
                                             <span className="font-black text-sm tracking-tight">{pos.symbol}</span>
-                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-widest ${pos.type === 'Buy'
+                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-widest ${isBuy
                                                 ? 'bg-emerald-500/10 text-emerald-500'
                                                 : 'bg-rose-500/10 text-rose-500'
                                                 }`}>

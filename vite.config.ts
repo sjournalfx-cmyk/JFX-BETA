@@ -8,6 +8,42 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        proxy: {
+          '/api/metaapi-provisioning': {
+            target: 'https://mt-provisioning-api-v1.metaapi.cloud',
+            changeOrigin: true,
+            secure: false,
+            rewrite: (path) => path.replace(/^\/api\/metaapi-provisioning/, ''),
+            configure: (proxy, _options) => {
+              proxy.on('error', (err, _req, _res) => {
+                console.log('proxy error', err);
+              });
+              proxy.on('proxyReq', (proxyReq, req, _res) => {
+                console.log('Sending Request to the Target:', req.method, req.url);
+              });
+              proxy.on('proxyRes', (proxyRes, req, _res) => {
+                console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
+              });
+            }
+          },
+          '/api/metaapi-client': {
+            target: 'https://mt-client-api-v1.new-york.metaapi.cloud',
+            changeOrigin: true,
+            secure: false,
+            rewrite: (path) => path.replace(/^\/api\/metaapi-client/, ''),
+            configure: (proxy, _options) => {
+              proxy.on('error', (err, _req, _res) => {
+                console.log('proxy error', err);
+              });
+              proxy.on('proxyReq', (proxyReq, req, _res) => {
+                console.log('Sending Request to the Target:', req.method, req.url);
+              });
+              proxy.on('proxyRes', (proxyRes, req, _res) => {
+                console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
+              });
+            }
+          }
+        }
       },
       plugins: [react()],
       define: {

@@ -4,9 +4,10 @@ import {
   Flag, ListChecks, Target, Link, Lock, ArrowRight, Maximize, Minimize
 } from 'lucide-react';
 import { Note, Goal, UserProfile } from '../types';
+import { uploadNoteImage } from '../services/dataService';
 import ConfirmationModal from './ConfirmationModal';
 import RichTextEditor, { ToolbarButton } from './RichTextEditor';
-import { uploadNoteImage } from '../services/dataService';
+import { APP_CONSTANTS, PLAN_FEATURES } from '../lib/constants';
 
 interface NotesProps {
   isDarkMode: boolean;
@@ -87,12 +88,15 @@ const Notes: React.FC<NotesProps> = ({ isDarkMode, notes, goals, onAddNote, onUp
   }, []);
 
   const createNewNote = async () => {
-    // Enforce Free Tier Limit: Max 1 saved note
-    if (isFreeTier && notes.length >= 1) {
+    // Enforce Plan Limits
+    const currentPlan = userProfile?.plan || APP_CONSTANTS.PLANS.FREE;
+    const features = PLAN_FEATURES[currentPlan];
+
+    if (features.maxNotes !== Infinity && notes.length >= features.maxNotes) {
       setConfirmModal({
         isOpen: true,
         title: 'Notebook Limit Reached',
-        description: 'The FREE TIER is limited to 1 saved note. Please upgrade to PRO or PREMIUM to create unlimited notes.',
+        description: `Your current plan is limited to ${features.maxNotes} saved note(s). Please upgrade to create unlimited notes.`,
         confirmText: 'Upgrade Now',
         showCancel: true,
         onConfirm: () => {
@@ -193,37 +197,24 @@ const Notes: React.FC<NotesProps> = ({ isDarkMode, notes, goals, onAddNote, onUp
   };
 
     const handleNoteUpload = (file: File) => {
+      const currentPlan = userProfile?.plan || APP_CONSTANTS.PLANS.FREE;
+      const features = PLAN_FEATURES[currentPlan];
 
-      if (isFreeTier) {
-
+      if (!features.allowImageUploads) {
         setConfirmModal({
-
           isOpen: true,
-
           title: 'Image Uploads Locked',
-
-          description: 'Image uploads are not available on the Free Tier. Please upgrade to a PRO plan to unlock this feature.',
-
+          description: 'Image uploads are not available on your current plan. Please upgrade to unlock this feature.',
           confirmText: 'Upgrade Now',
-
           showCancel: true,
-
           onConfirm: () => {
-
             onViewChange('settings');
-
             setConfirmModal(prev => ({ ...prev, isOpen: false }));
-
           }
-
         });
-
         return Promise.resolve(null);
-
       }
-
       return uploadNoteImage(file);
-
     };
 
   
@@ -335,41 +326,14 @@ const Notes: React.FC<NotesProps> = ({ isDarkMode, notes, goals, onAddNote, onUp
   
 
                 <button 
-
-  
-
                   onClick={createNewNote} 
-
-  
-
                   className={`p-2 rounded-lg transition-all shadow-lg active:scale-95 flex items-center gap-2 ${
-
-  
-
-                    isFreeTier && notes.length >= 1 
-
-  
-
+                    PLAN_FEATURES[userProfile?.plan || APP_CONSTANTS.PLANS.FREE].maxNotes !== Infinity && notes.length >= PLAN_FEATURES[userProfile?.plan || APP_CONSTANTS.PLANS.FREE].maxNotes
                     ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed shadow-none border border-zinc-200' 
-
-  
-
                     : 'bg-indigo-600 hover:bg-indigo-50 text-white shadow-indigo-500/20'
-
-  
-
                   }`}
-
-  
-
                 >
-
-  
-
-                  {isFreeTier && notes.length >= 1 ? <Lock size={16} /> : <Plus size={18} />}
-
-  
-
+                  {PLAN_FEATURES[userProfile?.plan || APP_CONSTANTS.PLANS.FREE].maxNotes !== Infinity && notes.length >= PLAN_FEATURES[userProfile?.plan || APP_CONSTANTS.PLANS.FREE].maxNotes ? <Lock size={16} /> : <Plus size={18} />}
                 </button>
 
   
@@ -490,94 +454,28 @@ const Notes: React.FC<NotesProps> = ({ isDarkMode, notes, goals, onAddNote, onUp
 
   
 
-            {/* Upgrade CTA for Free Tier */}
-
-  
-
-            {isFreeTier && notes.length >= 1 && (
-
-  
-
+            {/* Upgrade CTA if limit reached */}
+            {PLAN_FEATURES[userProfile?.plan || APP_CONSTANTS.PLANS.FREE].maxNotes !== Infinity && notes.length >= PLAN_FEATURES[userProfile?.plan || APP_CONSTANTS.PLANS.FREE].maxNotes && (
               <div className="p-4 mt-auto">
-
-  
-
                 <button 
-
-  
-
                   onClick={() => onViewChange('settings')}
-
-  
-
                   className={`w-full p-4 rounded-2xl border border-dashed flex flex-col gap-2 text-left transition-all hover:border-indigo-500 group ${isDarkMode ? 'bg-indigo-500/5 border-zinc-800' : 'bg-indigo-50 border-indigo-200'}`}
-
-  
-
                 >
-
-  
-
                   <div className="flex items-center justify-between w-full">
-
-  
-
                     <div className="p-1.5 rounded-lg bg-indigo-500 text-white shadow-lg shadow-indigo-500/20">
-
-  
-
                       <Lock size={14} />
-
-  
-
                     </div>
-
-  
-
-                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500 opacity-60">Free Tier</span>
-
-  
-
+                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500 opacity-60">Plan Limit</span>
                   </div>
-
-  
-
                   <div>
-
-  
-
                     <h4 className="text-xs font-bold leading-tight">Unlock Unlimited Notes</h4>
-
-  
-
-                    <p className="text-[10px] opacity-50 mt-0.5">You've reached the 1-note limit. Upgrade to PRO to save more insights.</p>
-
-  
-
+                    <p className="text-[10px] opacity-50 mt-0.5">You've reached your plan's note limit. Upgrade to save more insights.</p>
                   </div>
-
-  
-
                   <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-indigo-500 mt-1 group-hover:gap-2 transition-all">
-
-  
-
                     Upgrade Now <ArrowRight size={12} />
-
-  
-
                   </div>
-
-  
-
                 </button>
-
-  
-
               </div>
-
-  
-
             )}
 
   

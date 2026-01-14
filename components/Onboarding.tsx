@@ -85,6 +85,9 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
       // Skip Sync Tech, go to Account Config
       setFormData(prev => ({ ...prev, syncMethod: 'Manual', plan: 'FREE TIER (JOURNALER)' }));
       setStep(6);
+    } else if (step === 5 && formData.plan === 'PREMIUM (MASTERS)') {
+      // Premium users skip Account Config after selecting sync
+      setStep(7);
     } else {
       setStep(s => Math.min(s + 1, 7));
     }
@@ -94,6 +97,9 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
     if (step === 6 && isFreePlan) {
       setStep(4);
     } else if (step === 7 && formData.plan === 'PRO TIER (ANALYSTS)' && formData.syncMethod === 'EA_CONNECT') {
+      setStep(5);
+    } else if (step === 7 && formData.plan === 'PREMIUM (MASTERS)') {
+      // Premium users go back to Sync Tech, skipping Account Config
       setStep(5);
     } else {
       setStep(s => Math.max(s - 1, 1));
@@ -115,20 +121,26 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
     }
   };
 
-  const handleSelectSync = async (method: 'Manual' | 'EA_CONNECT') => {
+  const handleSelectSync = async (method: 'Manual' | 'EA_CONNECT' | 'BROKER_SYNC') => {
     const updatedData: UserProfile = {
       ...formData as UserProfile,
       syncMethod: method,
       onboarded: true,
-      accountName: formData.accountName || (method === 'EA_CONNECT' ? 'EA Sync Account' : 'Primary Trading Account')
+      accountName: formData.accountName || 
+        (method === 'EA_CONNECT' ? 'EA Sync Account' : 
+         method === 'BROKER_SYNC' ? 'Broker Sync Account' : 'Primary Trading Account')
     };
 
     setFormData(updatedData);
     
-    // For PRO TIER, selecting EA CONNECT goes to avatar selection before completing
-    if (method === 'EA_CONNECT' && formData.plan === 'PRO TIER (ANALYSTS)') {
+    // For PRO TIER (EA CONNECT) and PREMIUM TIER (BROKER SYNC), skip Account Config
+    if (
+      (method === 'EA_CONNECT' && formData.plan === 'PRO TIER (ANALYSTS)') || 
+      (method === 'BROKER_SYNC' && formData.plan === 'PREMIUM (MASTERS)')
+    ) {
       setStep(7);
     } else {
+      // Default fallback, though manual navigation handles most cases
       setStep(6);
     }
   };
@@ -321,27 +333,27 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
                       'Goals & Calculators',
                       'Attach up to 1000 images'
                     ],
-                    price: '4.99', 
+                    price: '0', 
                     limit: '500 trades / mo', 
                     highlight: false, 
-                    tag: 'Popular' 
+                    tag: 'Free for Beta' 
                   },
                   { 
                     name: 'PREMIUM (MASTERS)', 
-                    focus: 'Direct integration for professionals.',
+                    focus: 'Professional-grade trading journal.',
                     features: [
                       'Everything in PRO',
-                      'Direct Broker Sync (API)',
-                      'AI Trade Insights',
+                      'Unlimited Monthly Trades',
+                      'High-Capacity Image Storage',
                       'Multiple Chart Layouts',
-                      'Advanced Playbooks',
-                      'Unlimited image attachments',
-                      'Voice Record Note Attachments'
+                      'Priority Infrastructure',
+                      'Professional Playbooks',
+                      'Unlimited Notebooks'
                     ],
-                    price: '14.99', 
+                    price: '0', 
                     limit: 'Unlimited trades', 
                     highlight: true, 
-                    tag: 'Most popular' 
+                    tag: 'Beta: Free Access' 
                   }
                 ].map((plan, idx) => (
                   <div key={idx} className={`p-8 rounded-2xl border-2 flex flex-col h-full relative ${plan.highlight ? 'border-[#FF4F01]' : isDarkMode ? 'bg-[#111] border-zinc-800' : 'bg-white border-zinc-100 shadow-sm'}`}>
@@ -365,9 +377,18 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
                     </div>
 
                     <div className="mt-auto">
-                      <div className="mb-6"><span className="text-5xl font-black">{formData.currencySymbol}{plan.price}</span> <span className="text-xs opacity-50 uppercase font-bold tracking-widest">{idx === 0 ? 'one-time' : '/monthly'}</span></div>
+                      <div className="mb-6">
+                        {plan.price === '0' && idx !== 0 ? (
+                          <div className="flex flex-col">
+                            <span className="text-3xl font-black text-[#FF4F01]">FREE TO USE</span>
+                            <span className="text-[10px] font-bold opacity-50 uppercase tracking-widest">FOR BETA TESTING</span>
+                          </div>
+                        ) : (
+                          <><span className="text-5xl font-black">{formData.currencySymbol}{plan.price}</span> <span className="text-xs opacity-50 uppercase font-bold tracking-widest">{idx === 0 ? 'one-time' : '/monthly'}</span></>
+                        )}
+                      </div>
                       <button onClick={() => handleSelectPlan(plan.name)} className={`w-full py-4 rounded-xl font-bold text-sm transition-all ${plan.highlight ? 'bg-[#FF4F01] text-white hover:bg-[#e64601] shadow-lg shadow-[#FF4F01]/20' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}>
-                        {idx === 0 ? 'Get started' : 'Subscribe'}
+                        {idx === 0 ? 'Get started' : 'Join Beta'}
                       </button>
                     </div>
                   </div>
@@ -377,18 +398,18 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
           )}
 
           {step === 5 && (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl">
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-6xl">
               <h1 className="text-5xl font-bold tracking-tight mb-4">Sync Technology</h1>
               <p className={`text-lg mb-12 ${subTextColor}`}>Choose how you want to import your trading data.</p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className={`grid grid-cols-1 ${formData.plan === 'PRO TIER (ANALYSTS)' ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-8`}>
                 <button
                   onClick={() => handleSelectSync('Manual')}
-                  disabled={formData.plan === 'PRO TIER (ANALYSTS)'}
+                  disabled={formData.plan === 'PRO TIER (ANALYSTS)' || formData.plan === 'PREMIUM (MASTERS)'}
                   className={`p-10 rounded-[32px] border-2 text-left transition-all group relative overflow-hidden ${formData.syncMethod === 'Manual'
                       ? 'border-[#FF4F01] bg-[#FF4F01]/5'
                       : isDarkMode ? 'border-zinc-800 bg-[#111]' : 'border-zinc-100 bg-white shadow-sm'
-                    } ${formData.plan === 'PRO TIER (ANALYSTS)' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    } ${formData.plan === 'PRO TIER (ANALYSTS)' || formData.plan === 'PREMIUM (MASTERS)' ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-8 transition-colors ${formData.syncMethod === 'Manual' ? 'bg-[#FF4F01] text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500'}`}>
                     <ShieldCheck size={28} />
@@ -407,10 +428,11 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
 
                 <button
                   onClick={() => handleSelectSync('EA_CONNECT')}
+                  disabled={formData.plan === 'PREMIUM (MASTERS)'}
                   className={`p-10 rounded-[32px] border-2 text-left transition-all group relative overflow-hidden ${formData.syncMethod === 'EA_CONNECT'
                       ? 'border-[#FF4F01] bg-[#FF4F01]/5'
                       : isDarkMode ? 'border-zinc-800 bg-[#111]' : 'border-zinc-100 bg-white shadow-sm'
-                    }`}
+                    } ${formData.plan === 'PREMIUM (MASTERS)' ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-8 transition-colors ${formData.syncMethod === 'EA_CONNECT' ? 'bg-[#FF4F01] text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500'}`}>
                     <Cpu size={28} />
@@ -429,11 +451,38 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
                   </ul>
                   {formData.syncMethod === 'EA_CONNECT' && <div className="absolute top-8 right-8 text-[#FF4F01]"><CheckCircle2 size={32} /></div>}
                 </button>
+
+                {formData.plan !== 'PRO TIER (ANALYSTS)' && (
+                  <button
+                    onClick={() => handleSelectSync('BROKER_SYNC')}
+                    className={`p-10 rounded-[32px] border-2 text-left transition-all group relative overflow-hidden ${formData.syncMethod === 'BROKER_SYNC'
+                        ? 'border-[#FF4F01] bg-[#FF4F01]/5'
+                        : isDarkMode ? 'border-zinc-800 bg-[#111]' : 'border-zinc-100 bg-white shadow-sm'
+                      }`}
+                  >
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-8 transition-colors ${formData.syncMethod === 'BROKER_SYNC' ? 'bg-[#FF4F01] text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500'}`}>
+                      <Globe size={28} />
+                    </div>
+                    <div className="flex items-center gap-3 mb-3">
+                      <h3 className="text-2xl font-black">Direct API</h3>
+                      <span className="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-widest">PREMIUM</span>
+                    </div>
+                    <p className="text-sm opacity-50 leading-relaxed mb-6">Connect directly to your broker via API. Professional grade synchronization without any desktop bridge software.</p>
+                    <ul className="space-y-2">
+                      {['Cloud sync', 'Direct broker link', 'Institutional speed'].map(item => (
+                        <li key={item} className="flex items-center gap-2 text-xs font-bold opacity-60 uppercase tracking-widest">
+                          <Check size={14} className="text-[#FF4F01]" /> {item}
+                        </li>
+                      ))}
+                    </ul>
+                    {formData.syncMethod === 'BROKER_SYNC' && <div className="absolute top-8 right-8 text-[#FF4F01]"><CheckCircle2 size={32} /></div>}
+                  </button>
+                )}
               </div>
             </div>
           )}
 
-          {step === 6 && (
+          {step === 6 && formData.plan !== 'PREMIUM (MASTERS)' && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-4xl">
               <h1 className="text-5xl font-bold tracking-tight mb-4">Account Configuration</h1>
               <p className={`text-lg mb-12 ${subTextColor}`}>Define your primary trading account details and base currency.</p>
@@ -560,7 +609,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ isDarkMode, onComplete }) => {
                 {step === 5 && (
                   <div className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Select Sync Method Above</div>
                 )}
-                {(step < 5 || (step === 5 && formData.syncMethod === 'Manual') || (step === 6)) && (
+                {(step < 5 || step === 6) && (
                   <button
                     onClick={nextStep}
                     disabled={(step === 1 && (!formData.name || !formData.country)) || (step === 3 && !agreedToTerms)}
