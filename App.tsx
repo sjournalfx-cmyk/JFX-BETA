@@ -18,6 +18,7 @@ import Onboarding from './components/Onboarding';
 import Settings from './components/Settings';
 import EASetup from './components/EASetup';
 import BrokerConnect from './components/BrokerConnect';
+import MobileBlocker from './components/MobileBlocker';
 import ConfirmationModal from './components/ConfirmationModal';
 import QuickLogModal from './components/QuickLogModal';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -32,6 +33,23 @@ const AppContent: React.FC = () => {
   const [currentView, setCurrentView] = useState('dashboard');
   const [settingsTab, setSettingsTab] = useState<'profile' | 'account' | 'appearance' | 'billing' | 'security' | 'help'>('profile');
   const { addToast } = useToast();
+
+  // Mobile Detection (Enhanced with User-Agent check)
+  const checkIfMobile = () => {
+    const isSmallScreen = window.innerWidth < 1024;
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    return isSmallScreen || isMobileUA;
+  };
+
+  const [isMobile, setIsMobile] = useState(checkIfMobile());
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(checkIfMobile());
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Persistent State (Theme only)
   const [isDarkMode, setIsDarkMode] = useLocalStorage<boolean>('jfx_theme_dark', true);
@@ -639,6 +657,10 @@ const AppContent: React.FC = () => {
       }
     }
   }, [currentView, isAuthenticated, userId]);
+
+  if (isMobile) {
+    return <MobileBlocker isDarkMode={isDarkMode} />;
+  }
 
   if (isInitialLoading) {
     return (
