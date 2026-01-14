@@ -127,16 +127,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     },
     { id: 'theme', icon: isDarkMode ? IconSun : IconMoon, label: isDarkMode ? 'Light Mode' : 'Dark Mode', onClick: onToggleTheme },
     { 
-      id: 'feedback', 
-      icon: IconMessage, 
-      label: 'Send Feedback', 
-      onClick: () => {
-        onSettingsTabChange?.('help');
-        onViewChange('settings');
-      },
-      variant: 'warning'
-    },
-    { 
       id: 'settings', 
       icon: IconSettings, 
       label: 'Settings', 
